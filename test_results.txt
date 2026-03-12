@@ -1,0 +1,69 @@
+
+Running 4 tests using 4 workers
+
+[1A[2K[1/4] [Google Chrome] › tests\student-dashboard.spec.ts:4:5 › Student Dashboard UI › Renders student dashboard after student login
+[1A[2K[2/4] [Google Chrome] › tests\auth.spec.ts:4:5 › Auth UI › Login Page renders correctly and handles invalid login
+[1A[2K[3/4] [Google Chrome] › tests\user-management.spec.ts:4:5 › User Management UI › Renders user management after admin login and navigation
+[1A[2K[4/4] [Google Chrome] › tests\auth.spec.ts:22:5 › Auth UI › Sign Up Page renders correctly
+[1A[2K  1) [Google Chrome] › tests\student-dashboard.spec.ts:4:5 › Student Dashboard UI › Renders student dashboard after student login 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('text=My Classes')
+    Expected: visible
+    Error: strict mode violation: locator('text=My Classes') resolved to 2 elements:
+        1) <button class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-gray-600 hover:bg-gray-100">…</button> aka getByRole('button', { name: 'My Classes' })
+        2) <h2 class="text-lg font-semibold text-gray-900">My Classes</h2> aka getByRole('heading', { name: 'My Classes' })
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('text=My Classes')[22m
+
+
+      19 |
+      20 |         // Check enrolled classes
+    > 21 |         await expect(page.locator('text=My Classes')).toBeVisible();
+         |                                                       ^
+      22 |         await expect(page.locator('text=Guitar Basics').first()).toBeVisible();
+      23 |     });
+      24 | });
+        at C:\Users\User\Desktop\Agile\Studio\tests\student-dashboard.spec.ts:21:55
+
+    Error Context: test-results\student-dashboard-Student--77712-shboard-after-student-login-Google-Chrome\error-context.md
+
+
+[1A[2K  2) [Google Chrome] › tests\user-management.spec.ts:4:5 › User Management UI › Renders user management after admin login and navigation 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('text=Students').nth(1)
+    Expected: visible
+    Received: hidden
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('text=Students').nth(1)[22m
+    [2m    9 × locator resolved to <option value="student">Students</option>[22m
+    [2m      - unexpected value "hidden"[22m
+
+
+      25 |         // Check stats
+      26 |         await expect(page.locator('text=Total Users')).toBeVisible();
+    > 27 |         await expect(page.locator('text=Students').nth(1)).toBeVisible();
+         |                                                            ^
+      28 |
+      29 |         // Open Add User modal
+      30 |         await page.getByRole('button', { name: 'Add User' }).click();
+        at C:\Users\User\Desktop\Agile\Studio\tests\user-management.spec.ts:27:60
+
+    Error Context: test-results\user-management-User-Manag-6a27b--admin-login-and-navigation-Google-Chrome\error-context.md
+
+
+[1A[2K  2 failed
+    [Google Chrome] › tests\student-dashboard.spec.ts:4:5 › Student Dashboard UI › Renders student dashboard after student login 
+    [Google Chrome] › tests\user-management.spec.ts:4:5 › User Management UI › Renders user management after admin login and navigation 
+  2 passed (10.2s)
+
+[36m  Serving HTML report at http://localhost:9323. Press Ctrl+C to quit.[39m
+Terminate batch job (Y/N)? 

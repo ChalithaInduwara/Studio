@@ -1,0 +1,36 @@
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] [Google Chrome] › tests\dashboard.spec.ts:3:1 › Admin Dashboard should render core features
+[1A[2K  1) [Google Chrome] › tests\dashboard.spec.ts:3:1 › Admin Dashboard should render core features ───
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('text=Studio Sync')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for locator('text=Studio Sync')[22m
+
+
+       7 |     // Expect the title to contain "Vite" or other generic title, but let's check for content
+       8 |     // We can look for the brand name or main header
+    >  9 |     await expect(page.locator('text=Studio Sync')).toBeVisible();
+         |                                                    ^
+      10 |
+      11 |     // The default user role is admin, so we should see "Dashboard" and some stats
+      12 |     await expect(page.locator('text=Welcome back!')).toBeVisible();
+        at C:\Users\User\Desktop\Agile\Studio\tests\dashboard.spec.ts:9:52
+
+    Error Context: test-results\dashboard-Admin-Dashboard-should-render-core-features-Google-Chrome\error-context.md
+
+
+[1A[2K  1 failed
+    [Google Chrome] › tests\dashboard.spec.ts:3:1 › Admin Dashboard should render core features ────
+
+[36m  Serving HTML report at http://localhost:50899. Press Ctrl+C to quit.[39m
+Terminate batch job (Y/N)? 
+^C
