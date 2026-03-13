@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Mail, Lock, User, Music } from 'lucide-react';
+import { Mail, Lock, User, Music, Loader2, Users } from 'lucide-react';
+import { authService } from '@/services/auth.service';
 
 import { User as UserType } from '@/types';
 
@@ -12,16 +13,26 @@ export function SignUp({ onSignUp, onNavigateToLogin }: SignUpProps) {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [role, setRole] = useState<'student' | 'client' | 'tutor'>('student');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (name && email && password) {
-            onSignUp({
-                id: 'new-user-id',
-                name: name,
-                email: email,
-                role: 'student'
-            });
+        setError('');
+        setLoading(true);
+
+        try {
+            const res = await authService.register({ name, email, password, role });
+            if (res.success && res.data?.user) {
+                onSignUp(res.data.user);
+            } else {
+                setError(res.message || 'Registration failed');
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Connection error. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -42,6 +53,11 @@ export function SignUp({ onSignUp, onNavigateToLogin }: SignUpProps) {
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100">
                     <form className="space-y-6" onSubmit={handleSubmit}>
+                        {error && (
+                            <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-600">
+                                {error}
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-medium text-gray-700">
                                 Full Name
@@ -100,11 +116,36 @@ export function SignUp({ onSignUp, onNavigateToLogin }: SignUpProps) {
                         </div>
 
                         <div>
+                            <label className="block text-sm font-medium text-gray-700">
+                                I am a...
+                            </label>
+                            <div className="mt-1 relative rounded-md shadow-sm">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Users className="h-5 w-5 text-gray-400" />
+                                </div>
+                                <select
+                                    value={role}
+                                    onChange={(e) => setRole(e.target.value as any)}
+                                    className="focus:ring-purple-500 focus:border-purple-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg p-2.5 border outline-none transition-colors appearance-none bg-white"
+                                >
+                                    <option value="student">Student</option>
+                                    <option value="client">Studio Client</option>
+                                    <option value="tutor">Tutor</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
                             <button
                                 type="submit"
-                                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all hover:shadow-md"
+                                disabled={loading}
+                                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Create Account
+                                {loading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    'Create Account'
+                                )}
                             </button>
                         </div>
                     </form>

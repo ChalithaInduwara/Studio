@@ -2,7 +2,7 @@
 
 const classService = require('../services/class.service');
 const asyncHandler = require('../utils/asyncHandler');
-const { successResponse, errorResponse } = require('../utils/apiResponse');
+const { successResponse } = require('../utils/apiResponse');
 
 const getAllClasses = asyncHandler(async (req, res) => {
     const { tutorId, isActive, isRecurring } = req.query;
@@ -12,6 +12,12 @@ const getAllClasses = asyncHandler(async (req, res) => {
         isRecurring: isRecurring !== undefined ? isRecurring === 'true' : undefined,
     });
     return successResponse(res, classes, 'Classes retrieved');
+});
+
+// Get classes assigned to the currently logged-in tutor
+const getMyClasses = asyncHandler(async (req, res) => {
+    const classes = await classService.getTutorClasses(req.user._id);
+    return successResponse(res, classes, 'My classes retrieved');
 });
 
 const createClass = asyncHandler(async (req, res) => {
@@ -35,8 +41,30 @@ const deleteClass = asyncHandler(async (req, res) => {
 });
 
 const enrollInClass = asyncHandler(async (req, res) => {
-    const enrollment = await classService.enrollStudent(req.params.id, req.user._id);
-    return successResponse(res, enrollment, 'Enrolled successfully', 201);
+    const isAdminRequest = req.user.role === 'admin' || req.user.role === 'tutor';
+    const enrollment = await classService.enrollStudent(req.params.id, req.user._id, isAdminRequest);
+    const message = isAdminRequest ? 'Enrolled successfully' : 'Enrollment request sent';
+    return successResponse(res, enrollment, message, 201);
+});
+
+const approveEnrollment = asyncHandler(async (req, res) => {
+    const enrollment = await classService.approveEnrollment(req.params.id);
+    return successResponse(res, enrollment, 'Enrollment approved');
+});
+
+const rejectEnrollment = asyncHandler(async (req, res) => {
+    const enrollment = await classService.rejectEnrollment(req.params.id);
+    return successResponse(res, enrollment, 'Enrollment rejected');
+});
+
+const getPendingRequests = asyncHandler(async (req, res) => {
+    const requests = await classService.getPendingEnrollments();
+    return successResponse(res, requests, 'Pending requests retrieved');
+});
+
+const getMyEnrollments = asyncHandler(async (req, res) => {
+    const enrollments = await classService.getStudentEnrollments(req.user._id);
+    return successResponse(res, enrollments, 'My enrollments retrieved');
 });
 
 const getClassStudents = asyncHandler(async (req, res) => {
@@ -44,4 +72,7 @@ const getClassStudents = asyncHandler(async (req, res) => {
     return successResponse(res, enrollments, 'Enrollments retrieved');
 });
 
-module.exports = { getAllClasses, createClass, getClassById, updateClass, deleteClass, enrollInClass, getClassStudents };
+module.exports = {
+    getAllClasses, getMyClasses, createClass, getClassById, updateClass, deleteClass,
+    enrollInClass, approveEnrollment, rejectEnrollment, getPendingRequests, getMyEnrollments, getClassStudents
+};

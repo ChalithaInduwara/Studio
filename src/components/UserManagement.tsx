@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import { 
-  Users, 
-  Plus, 
-  Search, 
-  Filter, 
-  User,
+import { useState, useEffect } from 'react';
+import {
+  Users,
+  Plus,
+  Search,
+  Filter,
+  User as UserIcon,
   Mail,
   Phone,
   Shield,
   X,
   Edit,
-  MoreVertical
+  MoreVertical,
+  Loader2
 } from 'lucide-react';
-import { users } from '@/data/mockData';
+import { userService } from '@/services/user.service';
 import { cn } from '@/utils/cn';
 import { UserRole } from '@/types';
 
@@ -20,10 +21,28 @@ export function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await userService.getAll();
+        if (res.success) {
+          setUsers(Array.isArray(res.data) ? res.data : (res.data.users || []));
+        }
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.email || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     return matchesSearch && matchesRole;
   });
@@ -32,22 +51,24 @@ export function UserManagement() {
     admin: 'bg-red-100 text-red-700',
     tutor: 'bg-purple-100 text-purple-700',
     student: 'bg-blue-100 text-blue-700',
-    studio_client: 'bg-green-100 text-green-700'
+    studio_client: 'bg-green-100 text-green-700',
+    client: 'bg-green-100 text-green-700'
   };
 
   const roleLabels: Record<UserRole, string> = {
     admin: 'Administrator',
     tutor: 'Tutor',
     student: 'Student',
-    studio_client: 'Studio Client'
+    studio_client: 'Studio Client',
+    client: 'Studio Client'
   };
 
   const roleCounts = {
     all: users.length,
-    admin: users.filter(u => u.role === 'admin').length,
-    tutor: users.filter(u => u.role === 'tutor').length,
-    student: users.filter(u => u.role === 'student').length,
-    studio_client: users.filter(u => u.role === 'studio_client').length
+    admin: users.filter((u: any) => u.role === 'admin').length,
+    tutor: users.filter((u: any) => u.role === 'tutor').length,
+    student: users.filter((u: any) => u.role === 'student').length,
+    studio_client: users.filter((u: any) => u.role === 'studio_client' || u.role === 'client').length
   };
 
   return (
@@ -58,7 +79,7 @@ export function UserManagement() {
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-500 mt-1">Manage all users and their roles</p>
         </div>
-        <button 
+        <button
           onClick={() => setShowAddUserModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-purple-200 hover:shadow-xl transition-shadow"
         >
@@ -83,7 +104,7 @@ export function UserManagement() {
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-              <User className="w-5 h-5 text-blue-600" />
+              <UserIcon className="w-5 h-5 text-blue-600" />
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900">{roleCounts.student}</p>
@@ -94,7 +115,7 @@ export function UserManagement() {
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-              <User className="w-5 h-5 text-purple-600" />
+              <UserIcon className="w-5 h-5 text-purple-600" />
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900">{roleCounts.tutor}</p>
@@ -105,7 +126,7 @@ export function UserManagement() {
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-              <User className="w-5 h-5 text-green-600" />
+              <UserIcon className="w-5 h-5 text-green-600" />
             </div>
             <div>
               <p className="text-xl font-bold text-gray-900">{roleCounts.studio_client}</p>
@@ -114,6 +135,12 @@ export function UserManagement() {
           </div>
         </div>
       </div>
+
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -164,11 +191,11 @@ export function UserManagement() {
                       <div className={cn(
                         "w-10 h-10 rounded-full flex items-center justify-center",
                         user.role === 'admin' ? 'bg-gradient-to-br from-red-500 to-pink-500' :
-                        user.role === 'tutor' ? 'bg-gradient-to-br from-purple-500 to-indigo-500' :
-                        user.role === 'student' ? 'bg-gradient-to-br from-blue-500 to-cyan-500' :
-                        'bg-gradient-to-br from-green-500 to-emerald-500'
+                          user.role === 'tutor' ? 'bg-gradient-to-br from-purple-500 to-indigo-500' :
+                            user.role === 'student' ? 'bg-gradient-to-br from-blue-500 to-cyan-500' :
+                              'bg-gradient-to-br from-green-500 to-emerald-500'
                       )}>
-                        <User className="w-5 h-5 text-white" />
+                        <UserIcon className="w-5 h-5 text-white" />
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{user.name}</p>
@@ -191,9 +218,9 @@ export function UserManagement() {
                   <td className="px-6 py-4">
                     <span className={cn(
                       "px-3 py-1 text-xs font-medium rounded-full",
-                      roleColors[user.role]
+                      roleColors[user.role as UserRole] || 'bg-gray-100 text-gray-700'
                     )}>
-                      {roleLabels[user.role]}
+                      {roleLabels[user.role as UserRole] || user.role}
                     </span>
                   </td>
                   <td className="px-6 py-4 hidden lg:table-cell">
@@ -236,35 +263,35 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
         <form className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <input 
+            <input
               type="text"
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Enter full name"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input 
+            <input
               type="email"
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Enter email address"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-            <input 
+            <input
               type="tel"
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Enter phone number"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
             <select className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500">
@@ -275,7 +302,7 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
               <option value="studio_client">Studio Client</option>
             </select>
           </div>
-          
+
           <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-xl">
             <Shield className="w-5 h-5 text-purple-600" />
             <div>
@@ -283,16 +310,16 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
               <p className="text-xs text-gray-500">User will have access based on their assigned role</p>
             </div>
           </div>
-          
+
           <div className="flex gap-3 pt-4">
-            <button 
+            <button
               type="button"
               onClick={onClose}
               className="flex-1 py-2 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
-            <button 
+            <button
               type="submit"
               className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium hover:shadow-lg transition-shadow"
             >

@@ -17,6 +17,13 @@ const getAllClasses = async ({ tutorId, isActive, isRecurring } = {}) => {
         .sort({ 'schedule.day': 1, 'schedule.startTime': 1 });
 };
 
+// ─── Get classes for the logged-in tutor ──────────────────────────────────
+const getTutorClasses = async (tutorId) => {
+    return Class.find({ tutorId })
+        .populate('tutorId', 'name email')
+        .sort({ 'schedule.day': 1, 'schedule.startTime': 1 });
+};
+
 // ─── Create class (with tutor conflict check) ──────────────────────────────
 const createClass = async (data) => {
     const { tutorId, schedule } = data;
@@ -81,24 +88,28 @@ const deleteClass = async (id) => {
     return c;
 };
 
-// ─── Enroll student ────────────────────────────────────────────────────────
-const enrollStudent = async (classId, studentId) => {
+// ─── Enroll student (Request) ──────────────────────────────────────────────
+const enrollStudent = async (classId, studentId, isAdminRequest = false) => {
     const classDoc = await Class.findById(classId);
     if (!classDoc) { const e = new Error('Class not found'); e.statusCode = 404; throw e; }
     if (!classDoc.isActive) { const e = new Error('Class is not active'); e.statusCode = 400; throw e; }
 
-    // Capacity check
+    // Capacity check (only for active enrollments, but let's check for pending too to prevent over-requesting)
     if (classDoc.enrolledCount >= classDoc.capacity) {
         const err = new Error('Class is at full capacity'); err.statusCode = 409; throw err;
     }
 
     try {
-        const enrollment = await Enrollment.create({ studentId, classId });
-        // Increment enrolledCount atomically
-        await Class.findByIdAndUpdate(classId, { $inc: { enrolledCount: 1 } });
+        const enrollment = await Enrollment.create({
+            studentId,
+            classId,
+            status: isAdminRequest ? 'active' : 'pending'
+        });
 
-        // Fire-and-forget email
-        sendEnrollmentConfirmation(enrollment, classDoc).catch(console.error);
+        if (isAdminRequest) {
+            await Class.findByIdAndUpdate(classId, { $inc: { enrolledCount: 1 } });
+            sendEnrollmentConfirmation(enrollment, classDoc).catch(console.error);
+        }
 
         return enrollment.populate([
             { path: 'studentId', select: 'name email' },
@@ -106,10 +117,62 @@ const enrollStudent = async (classId, studentId) => {
         ]);
     } catch (err) {
         if (err.code === 11000) {
-            const e = new Error('Student is already enrolled in this class'); e.statusCode = 409; throw e;
+            const e = new Error('Student already has a request or enrollment for this class'); e.statusCode = 409; throw e;
         }
         throw err;
     }
+};
+
+// ─── Approve Enrollment ────────────────────────────────────────────────────
+const approveEnrollment = async (enrollmentId) => {
+    const enrollment = await Enrollment.findById(enrollmentId);
+    if (!enrollment) { const e = new Error('Enrollment not found'); e.statusCode = 404; throw e; }
+    if (enrollment.status !== 'pending') { const e = new Error('Enrollment is not pending'); e.statusCode = 400; throw e; }
+
+    const classDoc = await Class.findById(enrollment.classId);
+    if (classDoc.enrolledCount >= classDoc.capacity) {
+        const err = new Error('Class is now at full capacity'); err.statusCode = 409; throw err;
+    }
+
+    enrollment.status = 'active';
+    await enrollment.save();
+
+    await Class.findByIdAndUpdate(enrollment.classId, { $inc: { enrolledCount: 1 } });
+
+    sendEnrollmentConfirmation(enrollment, classDoc).catch(console.error);
+
+    return enrollment.populate([
+        { path: 'studentId', select: 'name email' },
+        { path: 'classId', select: 'className schedule' },
+    ]);
+};
+
+// ─── Reject Enrollment ─────────────────────────────────────────────────────
+const rejectEnrollment = async (enrollmentId) => {
+    const enrollment = await Enrollment.findById(enrollmentId);
+    if (!enrollment) { const e = new Error('Enrollment not found'); e.statusCode = 404; throw e; }
+    if (enrollment.status !== 'pending') { const e = new Error('Enrollment is not pending'); e.statusCode = 400; throw e; }
+
+    enrollment.status = 'dropped'; // Or 'rejected' if we add it to enum, 'dropped' is already there
+    await enrollment.save();
+
+    return enrollment.populate([
+        { path: 'studentId', select: 'name email' },
+        { path: 'classId', select: 'className schedule' },
+    ]);
+};
+
+// ─── Get Pending Requests ──────────────────────────────────────────────────
+const getPendingEnrollments = async () => {
+    return Enrollment.find({ status: 'pending' })
+        .populate('studentId', 'name email phone')
+        .populate('classId', 'className');
+};
+
+// ─── Get enrollments for current student ──────────────────────────────────
+const getStudentEnrollments = async (studentId) => {
+    return Enrollment.find({ studentId })
+        .populate('classId', 'className schedule onlineLink');
 };
 
 // ─── Get students enrolled in a class ─────────────────────────────────────
@@ -119,6 +182,6 @@ const getClassEnrollments = async (classId) => {
 };
 
 module.exports = {
-    getAllClasses, createClass, getClassById, updateClass, deleteClass,
-    enrollStudent, getClassEnrollments,
+    getAllClasses, getTutorClasses, createClass, getClassById, updateClass, deleteClass,
+    enrollStudent, approveEnrollment, rejectEnrollment, getPendingEnrollments, getStudentEnrollments, getClassEnrollments,
 };

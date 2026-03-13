@@ -12,10 +12,12 @@ import {
   BarChart3,
   Users,
   Settings,
-  LogOut
+  LogOut,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { notifications as notificationData } from '@/data/mockData';
+// import { notifications as notificationData } from '@/data/mockData';
+const notificationData: any[] = []; // Temporary until notification service is ready
 
 import { User as UserType } from '@/types';
 
@@ -154,8 +156,21 @@ export function Sidebar({ user, currentPage, setCurrentPage, isOpen, setIsOpen }
     { id: 'studio', label: 'Studio Bookings', icon: Mic2 },
     { id: 'academy', label: 'Academy Classes', icon: GraduationCap },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
+    { id: 'invoices', label: 'Invoices & Payments', icon: DollarSign },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  ];
+
+  const tutorMenuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'academy', label: 'My Classes', icon: GraduationCap },
+    { id: 'calendar', label: 'Schedule', icon: Calendar },
+  ];
+
+  const clientMenuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'studio', label: 'My Bookings', icon: Mic2 },
+    { id: 'calendar', label: 'Availability', icon: Calendar },
   ];
 
   const studentMenuItems = [
@@ -164,7 +179,11 @@ export function Sidebar({ user, currentPage, setCurrentPage, isOpen, setIsOpen }
     { id: 'calendar', label: 'Schedule', icon: Calendar },
   ];
 
-  const menuItems = user.role === 'student' ? studentMenuItems : adminMenuItems;
+  const menuItems =
+    user.role === 'admin' ? adminMenuItems :
+      user.role === 'tutor' ? tutorMenuItems :
+        (user.role === 'client' || user.role === 'studio_client') ? clientMenuItems :
+          studentMenuItems;
 
   return (
     <>

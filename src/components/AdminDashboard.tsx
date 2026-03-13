@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Calendar,
   DollarSign,
@@ -8,33 +9,70 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Music,
-  GraduationCap
+  GraduationCap,
+  Loader2
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { studioBookings, classSessions, payments, revenueData, users } from '@/data/mockData';
+import { bookingService } from '@/services/booking.service';
+import { classService } from '@/services/class.service';
+import { paymentService } from '@/services/payment.service';
+import { userService } from '@/services/user.service';
 import { cn } from '@/utils/cn';
 
 export function AdminDashboard() {
-  const totalStudioRevenue = payments.filter(p => p.type === 'studio' && p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
-  const totalAcademyRevenue = payments.filter(p => p.type === 'tuition' && p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
-  const totalStudents = users.filter(u => u.role === 'student').length;
-  const totalClients = users.filter(u => u.role === 'studio_client').length;
-  const pendingBookings = studioBookings.filter(b => b.status === 'pending').length;
-  const upcomingClasses = classSessions.filter(c => new Date(c.date) >= new Date()).length;
+  const [data, setData] = useState<any>({
+    bookings: [],
+    classes: [],
+    payments: [],
+    users: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        const [bookingsRes, classesRes, paymentsRes, usersRes] = await Promise.all([
+          bookingService.getAll(),
+          classService.getAll(),
+          paymentService.getAll(),
+          userService.getAll()
+        ]);
+
+        setData({
+          bookings: bookingsRes.success ? bookingsRes.data : [],
+          classes: classesRes.success ? classesRes.data : [],
+          payments: paymentsRes.success ? paymentsRes.data : [],
+          users: usersRes.success ? (Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data.users || [])) : []
+        });
+      } catch (error) {
+        console.error('Failed to fetch admin data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAllData();
+  }, []);
+
+  const totalStudioRevenue = data.payments.filter((p: any) => p.referenceModel === 'Booking' && p.status === 'paid').reduce((sum: number, p: any) => sum + p.amount, 0);
+  const totalAcademyRevenue = data.payments.filter((p: any) => p.referenceModel === 'Class' && p.status === 'paid').reduce((sum: number, p: any) => sum + p.amount, 0);
+  const totalStudents = data.users.filter((u: any) => u.role === 'student').length;
+  const totalClients = data.users.filter((u: any) => u.role === 'client').length;
+  const pendingBookings = data.bookings.filter((b: any) => b.status === 'pending').length;
+  const upcomingClasses = data.classes.filter((c: any) => c.isActive).length;
 
   const stats = [
     {
       label: 'Studio Revenue',
-      value: `$${totalStudioRevenue.toLocaleString()}`,
-      change: '+12%',
+      value: `LKR ${totalStudioRevenue.toLocaleString()}`,
+      change: '+10%',
       up: true,
       icon: Mic2,
       color: 'from-purple-500 to-purple-600'
     },
     {
       label: 'Academy Revenue',
-      value: `$${totalAcademyRevenue.toLocaleString()}`,
-      change: '+8%',
+      value: `LKR ${totalAcademyRevenue.toLocaleString()}`,
+      change: '+5%',
       up: true,
       icon: GraduationCap,
       color: 'from-blue-500 to-blue-600'
@@ -57,8 +95,19 @@ export function AdminDashboard() {
     },
   ];
 
-  const todayBookings = studioBookings.filter(b => b.date === '2025-01-15');
-  const todayClasses = classSessions.filter(c => c.date === '2025-01-15');
+  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long' });
+  const todayDateStr = new Date().toISOString().split('T')[0];
+
+  const todayBookings = data.bookings.filter((b: any) => b.date.startsWith(todayDateStr));
+  const todayClasses = data.classes.filter((c: any) => c.schedule?.day === today);
+
+  if (loading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -112,7 +161,7 @@ export function AdminDashboard() {
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={revenueData}>
+              <BarChart data={[] /* TODO: Real trend data from backend */}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 12 }} />
                 <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} />
@@ -152,10 +201,10 @@ export function AdminDashboard() {
             <div className="flex items-center justify-between p-4 bg-red-50 rounded-xl">
               <div className="flex items-center gap-3">
                 <DollarSign className="w-5 h-5 text-red-600" />
-                <span className="text-sm font-medium text-gray-700">Overdue Payments</span>
+                <span className="text-sm font-medium text-gray-700">Failed Payments</span>
               </div>
               <span className="text-lg font-bold text-red-600">
-                {payments.filter(p => p.status === 'overdue').length}
+                {data.payments.filter((p: any) => p.status === 'failed').length}
               </span>
             </div>
             <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl">
@@ -179,14 +228,14 @@ export function AdminDashboard() {
           </div>
           {todayBookings.length > 0 ? (
             <div className="space-y-3">
-              {todayBookings.map(booking => (
-                <div key={booking.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+              {todayBookings.map((booking: any) => (
+                <div key={booking._id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                   <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                     <Mic2 className="w-5 h-5 text-purple-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900">{booking.clientName}</p>
-                    <p className="text-sm text-gray-500 capitalize">{booking.service} • {booking.startTime} - {booking.endTime}</p>
+                    <p className="font-medium text-gray-900">{booking.userId?.name || 'Client'}</p>
+                    <p className="text-sm text-gray-500 capitalize">{booking.serviceType || 'Studio'} • {booking.startTime} - {booking.endTime}</p>
                   </div>
                   <span className={cn(
                     "px-3 py-1 text-xs font-medium rounded-full",
@@ -212,20 +261,20 @@ export function AdminDashboard() {
           </div>
           {todayClasses.length > 0 ? (
             <div className="space-y-3">
-              {todayClasses.map(classItem => (
-                <div key={classItem.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+              {todayClasses.map((classItem: any) => (
+                <div key={classItem._id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                   <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                     <GraduationCap className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900">{classItem.title}</p>
-                    <p className="text-sm text-gray-500">{classItem.tutorName} • {classItem.startTime} - {classItem.endTime}</p>
+                    <p className="font-medium text-gray-900">{classItem.className}</p>
+                    <p className="text-sm text-gray-500">{classItem.tutorId?.name || 'Tutor'} • {classItem.schedule?.startTime} - {classItem.schedule?.endTime}</p>
                   </div>
                   <span className={cn(
                     "px-3 py-1 text-xs font-medium rounded-full",
-                    classItem.type === 'online' ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                    classItem.onlineLink ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
                   )}>
-                    {classItem.type}
+                    {classItem.onlineLink ? 'Online' : 'In-Person'}
                   </span>
                 </div>
               ))}

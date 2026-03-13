@@ -59,7 +59,6 @@ paymentSchema.pre('save', async function (next) {
 });
 
 paymentSchema.index({ userId: 1, status: 1 });
-paymentSchema.index({ invoiceNumber: 1 });
 
 const Payment = mongoose.model('Payment', paymentSchema);
 module.exports = Payment;

@@ -1,7 +1,7 @@
-export type UserRole = 'admin' | 'tutor' | 'student' | 'studio_client';
+export type UserRole = 'admin' | 'tutor' | 'student' | 'client' | 'studio_client';
 
 export interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
   role: UserRole;
@@ -9,17 +9,44 @@ export interface User {
   phone?: string;
 }
 
+export interface Studio {
+  _id: string;
+  name: string;
+  description?: string;
+  hourlyRate: number;
+  openTime: string;
+  closeTime: string;
+  amenities?: string[];
+  isActive: boolean;
+}
+
 export interface StudioBooking {
-  id: string;
-  clientId: string;
-  clientName: string;
+  _id: string;
+  userId: {
+    _id: string;
+    name: string;
+  };
+  studioId: {
+    _id: string;
+    name: string;
+    hourlyRate: number;
+  };
+  serviceType: string;
   date: string;
   startTime: string;
   endTime: string;
-  service: 'recording' | 'mixing' | 'mastering';
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   notes?: string;
   totalAmount: number;
+}
+
+export interface StudioService {
+  _id: string;
+  name: string;
+  description: string;
+  price: number;
+  unit?: string;
+  duration?: number;
 }
 
 export interface ClassSession {

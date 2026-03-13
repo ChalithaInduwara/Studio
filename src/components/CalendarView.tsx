@@ -1,17 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
   Mic2,
   GraduationCap,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
-import { studioBookings, classSessions } from '@/data/mockData';
+import { bookingService } from '@/services/booking.service';
+import { classSessions as mockClasses } from '@/data/mockData';
 import { cn } from '@/utils/cn';
+import { StudioBooking, ClassSession } from '@/types';
 
 export function CalendarView() {
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 0, 15)); // January 2025
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'month' | 'week'>('month');
+  const [bookings, setBookings] = useState<StudioBooking[]>([]);
+  const [classes] = useState<ClassSession[]>(mockClasses);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await bookingService.getAll();
+        if (res.success) {
+          setBookings(res.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch calendar bookings:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -27,12 +49,10 @@ export function CalendarView() {
     const lastDay = new Date(year, month + 1, 0);
     const days = [];
 
-    // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDay.getDay(); i++) {
       days.push(null);
     }
 
-    // Add all days of the month
     for (let i = 1; i <= lastDay.getDate(); i++) {
       days.push(new Date(year, month, i));
     }
@@ -42,17 +62,16 @@ export function CalendarView() {
 
   const getEventsForDate = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
-    const bookings = studioBookings.filter(b => b.date === dateStr);
-    const classes = classSessions.filter(c => c.date === dateStr);
-    return { bookings, classes };
+    const dayBookings = bookings.filter(b => b.date.startsWith(dateStr));
+    const dayClasses = classes.filter(c => c.date.startsWith(dateStr));
+    return { dayBookings, dayClasses };
   };
 
   const checkConflicts = (date: Date) => {
-    const { bookings, classes } = getEventsForDate(date);
+    const { dayBookings, dayClasses } = getEventsForDate(date);
 
-    // Check for time overlaps between bookings and classes
-    for (const booking of bookings) {
-      for (const classSession of classes) {
+    for (const booking of dayBookings) {
+      for (const classSession of dayClasses) {
         const bookingStart = parseInt(booking.startTime.replace(':', ''));
         const bookingEnd = parseInt(booking.endTime.replace(':', ''));
         const classStart = parseInt(classSession.startTime.replace(':', ''));
@@ -71,6 +90,16 @@ export function CalendarView() {
   const navigateMonth = (direction: number) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + direction, 1));
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    );
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   return (
     <div className="space-y-6">
@@ -155,9 +184,9 @@ export function CalendarView() {
               return <div key={index} className="min-h-[100px] border-t border-r border-gray-100 bg-gray-50" />;
             }
 
-            const { bookings, classes } = getEventsForDate(day);
+            const { dayBookings, dayClasses } = getEventsForDate(day);
             const hasConflict = checkConflicts(day);
-            const isToday = day.toDateString() === new Date(2025, 0, 15).toDateString();
+            const isToday = day.toISOString().split('T')[0] === todayStr;
 
             return (
               <div
@@ -179,16 +208,16 @@ export function CalendarView() {
                   )}
                 </div>
                 <div className="space-y-1">
-                  {bookings.slice(0, 2).map(booking => (
+                  {dayBookings.slice(0, 2).map(booking => (
                     <div
-                      key={booking.id}
+                      key={booking._id}
                       className="flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs truncate"
                     >
                       <Mic2 className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{booking.clientName}</span>
+                      <span className="truncate">{booking.userId?.name || 'Studio'}</span>
                     </div>
                   ))}
-                  {classes.slice(0, 2).map(classItem => (
+                  {dayClasses.slice(0, 2).map(classItem => (
                     <div
                       key={classItem.id}
                       className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs truncate"
@@ -197,9 +226,9 @@ export function CalendarView() {
                       <span className="truncate">{classItem.title}</span>
                     </div>
                   ))}
-                  {(bookings.length + classes.length) > 2 && (
+                  {(dayBookings.length + dayClasses.length) > 2 && (
                     <span className="text-xs text-gray-500">
-                      +{bookings.length + classes.length - 2} more
+                      +{dayBookings.length + dayClasses.length - 2} more
                     </span>
                   )}
                 </div>
@@ -212,29 +241,32 @@ export function CalendarView() {
       {/* Today's Schedule */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Studio Bookings - Jan 15</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Studio Bookings - Today</h3>
           <div className="space-y-3">
-            {studioBookings.filter(b => b.date === '2025-01-15').map(booking => (
-              <div key={booking.id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl">
+            {bookings.filter(b => b.date.startsWith(todayStr)).map(booking => (
+              <div key={booking._id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl">
                 <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
                   <Mic2 className="w-5 h-5 text-purple-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">{booking.clientName}</p>
+                  <p className="font-medium text-gray-900">{booking.userId?.name || 'Client'}</p>
                   <p className="text-sm text-gray-500">{booking.startTime} - {booking.endTime}</p>
                 </div>
                 <span className="px-2 py-1 text-xs font-medium bg-purple-200 text-purple-700 rounded-full capitalize">
-                  {booking.service}
+                  {booking.serviceType || 'Studio'}
                 </span>
               </div>
             ))}
+            {bookings.filter(b => b.date.startsWith(todayStr)).length === 0 && (
+              <p className="text-gray-500 text-center py-4">No bookings scheduled for today.</p>
+            )}
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Classes - Jan 15</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Classes - Today</h3>
           <div className="space-y-3">
-            {classSessions.filter(c => c.date === '2025-01-15').map(classItem => (
+            {classes.filter(c => c.date.startsWith(todayStr)).map(classItem => (
               <div key={classItem.id} className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                   <GraduationCap className="w-5 h-5 text-blue-600" />
@@ -251,6 +283,9 @@ export function CalendarView() {
                 </span>
               </div>
             ))}
+            {classes.filter(c => c.date.startsWith(todayStr)).length === 0 && (
+              <p className="text-gray-500 text-center py-4">No classes scheduled for today.</p>
+            )}
           </div>
         </div>
       </div>

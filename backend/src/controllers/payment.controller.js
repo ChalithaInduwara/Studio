@@ -1,6 +1,8 @@
 'use strict';
 
 const paymentService = require('../services/payment.service');
+const invoiceService = require('../services/invoice.service');
+const emailService = require('../services/email.service');
 const asyncHandler = require('../utils/asyncHandler');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
 
@@ -37,4 +39,32 @@ const getMyPayments = asyncHandler(async (req, res) => {
     return successResponse(res, payments, 'Your payments retrieved');
 });
 
-module.exports = { getAllPayments, createPayment, getPaymentById, updatePaymentStatus, getMyPayments };
+const downloadInvoice = asyncHandler(async (req, res) => {
+    const payment = await paymentService.getPaymentById(req.params.id);
+    const pdfPath = await invoiceService.generateInvoicePDF(payment);
+    res.download(pdfPath);
+});
+
+const sendInvoiceEmail = asyncHandler(async (req, res) => {
+    const payment = await paymentService.getPaymentById(req.params.id);
+    const pdfPath = await invoiceService.generateInvoicePDF(payment);
+    await emailService.sendInvoiceEmail(payment, pdfPath);
+    return successResponse(res, null, 'Invoice email sent');
+});
+
+const sendReminderEmail = asyncHandler(async (req, res) => {
+    const payment = await paymentService.getPaymentById(req.params.id);
+    await emailService.sendPaymentReminder(payment);
+    return successResponse(res, null, 'Payment reminder email sent');
+});
+
+module.exports = {
+    getAllPayments,
+    createPayment,
+    getPaymentById,
+    updatePaymentStatus,
+    getMyPayments,
+    downloadInvoice,
+    sendInvoiceEmail,
+    sendReminderEmail
+};

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Mail, Lock, Music } from 'lucide-react';
+import { Mail, Lock, Music, Loader2 } from 'lucide-react';
+import { authService } from '@/services/auth.service';
 
 import { User } from '@/types';
 
@@ -11,28 +12,25 @@ interface LoginProps {
 export function Login({ onLogin, onNavigateToSignUp }: LoginProps) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setLoading(true);
 
-        if (email === 'admin@company.com' && password === 'admin123') {
-            onLogin({
-                id: 'mock-admin-id',
-                name: 'System Administrator',
-                email: 'admin@company.com',
-                role: 'admin'
-            });
-        } else if (email === 'student@company.com' && password === 'student123') {
-            onLogin({
-                id: 'mock-student-id',
-                name: 'Jane Student',
-                email: 'student@company.com',
-                role: 'student'
-            });
-        } else {
-            setError('Invalid credentials. Try admin@company.com/admin123 or student@company.com/student123');
+        try {
+            const res = await authService.login({ email, password });
+            if (res.success && res.data?.user) {
+                onLogin(res.data.user);
+            } else {
+                setError(res.message || 'Login failed');
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Connection error. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -118,9 +116,14 @@ export function Login({ onLogin, onNavigateToSignUp }: LoginProps) {
                         <div>
                             <button
                                 type="submit"
-                                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all hover:shadow-md"
+                                disabled={loading}
+                                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Sign in
+                                {loading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    'Sign in'
+                                )}
                             </button>
                         </div>
                     </form>

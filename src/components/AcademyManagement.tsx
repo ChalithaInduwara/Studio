@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   GraduationCap,
   Plus,
@@ -9,38 +9,113 @@ import {
   Video,
   MapPin,
   Calendar,
-  User,
+  User as UserIcon,
   ExternalLink,
   X,
   Repeat,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from 'lucide-react';
-import { classSessions, users } from '@/data/mockData';
+
+import { classService } from '@/services/class.service';
+import { userService } from '@/services/user.service';
 import { cn } from '@/utils/cn';
-import { ClassSession } from '@/types';
+import { User } from '@/types';
 
-type TabType = 'classes' | 'students' | 'tutors';
+type TabType = 'classes' | 'students' | 'tutors' | 'requests';
 
-export function AcademyManagement() {
+interface AcademyManagementProps {
+  user?: User;
+}
+
+export function AcademyManagement({ user }: AcademyManagementProps = {}) {
+  const isAdmin = user?.role === 'admin';
+  const isTutor = user?.role === 'tutor';
   const [activeTab, setActiveTab] = useState<TabType>('classes');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [showNewClassModal, setShowNewClassModal] = useState(false);
+  const [classes, setClasses] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
+  const [tutors, setTutors] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const students = users.filter(u => u.role === 'student');
-  const tutors = users.filter(u => u.role === 'tutor');
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        if (isAdmin) {
+          // Admin gets all classes, all users, and all pending enrollment requests
+          const [classesRes, usersRes, requestsRes] = await Promise.all([
+            classService.getAll(),
+            userService.getAll(),
+            classService.getPendingRequests()
+          ]);
+          if (classesRes.success) setClasses(classesRes.data);
+          if (usersRes.success) {
+            setStudents(usersRes.data.filter((u: any) => u.role === 'student'));
+            setTutors(usersRes.data.filter((u: any) => u.role === 'tutor'));
+          }
+          if (requestsRes.success) setRequests(requestsRes.data);
+        } else if (isTutor) {
+          // Tutor only sees their own classes
+          const classesRes = await classService.getMyClasses();
+          if (classesRes.success) setClasses(classesRes.data);
+        } else {
+          // Students and others just see all available classes
+          const classesRes = await classService.getAll();
+          if (classesRes.success) setClasses(classesRes.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [isAdmin, isTutor]);
 
-  const filteredClasses = classSessions.filter(session => {
-    const matchesSearch = session.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      session.tutorName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter === 'all' || session.type === typeFilter;
+  const handleApprove = async (requestId: string) => {
+    try {
+      const res = await classService.approveEnrollment(requestId);
+      if (res.success) {
+        setRequests(prev => prev.filter(r => r._id !== requestId));
+        // Refresh classes to update enrollment count
+        const classesRes = await classService.getAll();
+        if (classesRes.success) setClasses(classesRes.data);
+      }
+    } catch (error) {
+      console.error('Failed to approve enrollment:', error);
+    }
+  };
+
+  const handleReject = async (requestId: string) => {
+    try {
+      const res = await classService.rejectEnrollment(requestId);
+      if (res.success) {
+        setRequests(prev => prev.filter(r => r._id !== requestId));
+      }
+    } catch (error) {
+      console.error('Failed to reject enrollment:', error);
+    }
+  };
+
+  const filteredClasses = classes.filter(session => {
+    const matchesSearch = (session.className || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (session.tutorId?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = typeFilter === 'all' ||
+      (typeFilter === 'online' ? session.onlineLink : !session.onlineLink);
     return matchesSearch && matchesType;
   });
 
-  const tabs = [
+  const tabs = isAdmin ? [
     { id: 'classes', label: 'Classes', icon: Calendar },
     { id: 'students', label: 'Students', icon: Users },
     { id: 'tutors', label: 'Tutors', icon: GraduationCap },
+    { id: 'requests', label: `Requests (${requests.length})`, icon: CheckCircle },
+  ] : [
+    // Tutors and students only see Classes tab
+    { id: 'classes', label: 'My Classes', icon: Calendar },
   ];
 
   return (
@@ -68,7 +143,7 @@ export function AcademyManagement() {
               <Calendar className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{classSessions.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{classes.length}</p>
               <p className="text-sm text-gray-500">Active Classes</p>
             </div>
           </div>
@@ -96,6 +171,12 @@ export function AcademyManagement() {
           </div>
         </div>
       </div>
+
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
@@ -148,7 +229,7 @@ export function AcademyManagement() {
           {/* Classes Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredClasses.map(session => (
-              <ClassCard key={session.id} session={session} />
+              <ClassCard key={session._id} session={session} />
             ))}
           </div>
         </div>
@@ -169,11 +250,11 @@ export function AcademyManagement() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {students.map(student => (
-                <tr key={student.id} className="hover:bg-gray-50">
+                <tr key={student._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <User className="w-5 h-5 text-blue-600" />
+                        <UserIcon className="w-5 h-5 text-blue-600" />
                       </div>
                       <span className="text-sm font-medium text-gray-900">{student.name}</span>
                     </div>
@@ -195,67 +276,104 @@ export function AcademyManagement() {
         </div>
       )}
 
-      {/* Tutors Tab */}
-      {activeTab === 'tutors' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {tutors.map(tutor => (
-            <div key={tutor.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
-                  <User className="w-7 h-7 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900">{tutor.name}</h3>
-                  <p className="text-sm text-gray-500">{tutor.email}</p>
-                  <p className="text-sm text-gray-500">{tutor.phone}</p>
-
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Classes:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {classSessions.filter(c => c.tutorId === tutor.id).map(c => (
-                        <span key={c.id} className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                          {c.title}
-                        </span>
-                      ))}
+      {/* Enrollment Requests Tab */}
+      {activeTab === 'requests' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Student</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Class</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Requested Date</th>
+                <th className="px-6 py-4 text-right text-sm font-medium text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {requests.length > 0 ? requests.map(request => (
+                <tr key={request._id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                        <UserIcon className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{request.studentId?.name}</p>
+                        <p className="text-xs text-gray-500">{request.studentId?.email}</p>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                    {request.classId?.className}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {new Date(request.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleApprove(request._id)}
+                        className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(request._id)}
+                        className="px-3 py-1 bg-red-100 text-red-600 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500 italic">
+                    No pending enrollment requests
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* New Class Modal */}
       {showNewClassModal && (
-        <NewClassModal onClose={() => setShowNewClassModal(false)} />
+        <NewClassModal
+          onClose={() => setShowNewClassModal(false)}
+          onSuccess={async () => {
+            setShowNewClassModal(false);
+            const res = await classService.getAll();
+            if (res.success) setClasses(res.data);
+          }}
+        />
       )}
     </div>
   );
 }
 
-function ClassCard({ session }: { session: ClassSession }) {
+function ClassCard({ session }: { session: any }) {
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-gray-900">{session.title}</h3>
-          <p className="text-sm text-gray-500">{session.tutorName}</p>
+          <h3 className="font-semibold text-gray-900">{session.className}</h3>
+          <p className="text-sm text-gray-500">{session.tutorId?.name || 'Assigned Tutor'}</p>
         </div>
         <span className={cn(
           "px-3 py-1 text-xs font-medium rounded-full flex items-center gap-1",
-          session.type === 'online' ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+          session.onlineLink ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
         )}>
-          {session.type === 'online' ? <Video className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
-          {session.type}
+          {session.onlineLink ? <Video className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
+          {session.onlineLink ? 'Online' : 'In-Person'}
         </span>
       </div>
 
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Calendar className="w-4 h-4" />
-          <span>{session.date}</span>
-          {session.recurring && (
+          <span>{session.schedule?.day}</span>
+          {session.isRecurring && (
             <span className="flex items-center gap-1 text-blue-600">
               <Repeat className="w-3 h-3" />
               Weekly
@@ -264,17 +382,17 @@ function ClassCard({ session }: { session: ClassSession }) {
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Clock className="w-4 h-4" />
-          <span>{session.startTime} - {session.endTime}</span>
+          <span>{session.schedule?.startTime} - {session.schedule?.endTime}</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Users className="w-4 h-4" />
-          <span>{session.students.length} / {session.maxStudents} students</span>
+          <span>{session.enrolledCount || 0} / {session.capacity} students</span>
         </div>
       </div>
 
-      {session.type === 'online' && session.meetingLink && (
+      {session.onlineLink && (
         <a
-          href={session.meetingLink}
+          href={session.onlineLink}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 w-full py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors"
@@ -285,7 +403,7 @@ function ClassCard({ session }: { session: ClassSession }) {
         </a>
       )}
 
-      {session.type === 'in-person' && (
+      {!session.onlineLink && (
         <button className="flex items-center justify-center gap-2 w-full py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
           <CheckCircle className="w-4 h-4" />
           Mark Attendance
@@ -295,8 +413,46 @@ function ClassCard({ session }: { session: ClassSession }) {
   );
 }
 
-function NewClassModal({ onClose }: { onClose: () => void }) {
-  const [isOnline, setIsOnline] = useState(false);
+function NewClassModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [tutors, setTutors] = useState<any[]>([]);
+  const [formData, setFormData] = useState({
+    className: '',
+    description: '',
+    tutorId: '',
+    schedule: {
+      day: 'Monday',
+      startTime: '',
+      endTime: '',
+      startDate: new Date().toISOString().split('T')[0]
+    },
+    capacity: 10,
+    isRecurring: false,
+    onlineLink: ''
+  });
+
+  // Fetch tutors whenever the modal opens
+  useEffect(() => {
+    userService.getTutors().then(res => {
+      if (res.success) setTutors(res.data);
+    }).catch(console.error);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await classService.create(formData);
+      if (res.success) {
+        onSuccess();
+      }
+    } catch (error) {
+      console.error('Failed to create class:', error);
+      alert('Failed to create class. Check for schedule conflicts.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -308,57 +464,56 @@ function NewClassModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <form className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Class Title</label>
             <input
               type="text"
+              required
+              value={formData.className}
+              onChange={(e) => setFormData({ ...formData, className: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="e.g., Guitar Basics"
             />
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Describe the class..."
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Tutor</label>
-            <select className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option>Select a tutor</option>
-              <option>Sarah Williams</option>
-              <option>Mike Chen</option>
+            <select
+              required
+              value={formData.tutorId}
+              onChange={(e) => setFormData({ ...formData, tutorId: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a tutor</option>
+              {tutors.map(tutor => (
+                <option key={tutor._id} value={tutor._id}>{tutor.name}</option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="type"
-                  checked={!isOnline}
-                  onChange={() => setIsOnline(false)}
-                  className="text-blue-600"
-                />
-                <span className="text-sm">In-Person</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="type"
-                  checked={isOnline}
-                  onChange={() => setIsOnline(true)}
-                  className="text-blue-600"
-                />
-                <span className="text-sm">Online</span>
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-            <input
-              type="date"
+            <label className="block text-sm font-medium text-gray-700 mb-1">Schedule Day</label>
+            <select
+              required
+              value={formData.schedule.day}
+              onChange={(e) => setFormData({ ...formData, schedule: { ...formData.schedule, day: e.target.value } })}
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -366,6 +521,9 @@ function NewClassModal({ onClose }: { onClose: () => void }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
               <input
                 type="time"
+                required
+                value={formData.schedule.startTime}
+                onChange={(e) => setFormData({ ...formData, schedule: { ...formData.schedule, startTime: e.target.value } })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -373,24 +531,45 @@ function NewClassModal({ onClose }: { onClose: () => void }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
               <input
                 type="time"
+                required
+                value={formData.schedule.endTime}
+                onChange={(e) => setFormData({ ...formData, schedule: { ...formData.schedule, endTime: e.target.value } })}
                 className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Max Students</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
             <input
               type="number"
               min="1"
-              max="20"
-              defaultValue="6"
+              max="100"
+              value={formData.capacity}
+              onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Online Link (Optional)</label>
+            <input
+              type="url"
+              placeholder="https://zoom.us/..."
+              value={formData.onlineLink}
+              onChange={(e) => setFormData({ ...formData, onlineLink: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="recurring" className="rounded text-blue-600" />
+            <input
+              type="checkbox"
+              id="recurring"
+              checked={formData.isRecurring}
+              onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
+              className="rounded text-blue-600"
+            />
             <label htmlFor="recurring" className="text-sm text-gray-700">Recurring weekly class</label>
           </div>
 
@@ -398,15 +577,17 @@ function NewClassModal({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+              disabled={loading}
+              className="flex-1 py-2 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium hover:shadow-lg transition-shadow"
+              disabled={loading}
+              className="flex-1 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium hover:shadow-lg transition-shadow disabled:opacity-50 flex items-center justify-center"
             >
-              Create Class
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Create Class'}
             </button>
           </div>
         </form>

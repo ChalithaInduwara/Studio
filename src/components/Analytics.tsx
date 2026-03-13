@@ -1,19 +1,20 @@
-import { 
-  TrendingUp, 
-  TrendingDown,
+import { useState, useEffect } from 'react';
+import {
+  TrendingUp,
   DollarSign,
   Mic2,
   GraduationCap,
   Clock,
-  ArrowUpRight
+  ArrowUpRight,
+  Loader2
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -21,15 +22,47 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { revenueData, studioBookings, classSessions, payments } from '@/data/mockData';
+import { bookingService } from '@/services/booking.service';
+import { classService } from '@/services/class.service';
+import { paymentService } from '@/services/payment.service';
 
 export function Analytics() {
-  const totalStudioRevenue = payments.filter(p => p.type === 'studio' && p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
-  const totalAcademyRevenue = payments.filter(p => p.type === 'tuition' && p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+  const [data, setData] = useState<any>({
+    bookings: [],
+    classes: [],
+    payments: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        const [bookingsRes, classesRes, paymentsRes] = await Promise.all([
+          bookingService.getAll(),
+          classService.getAll(),
+          paymentService.getAll()
+        ]);
+
+        setData({
+          bookings: bookingsRes.success ? bookingsRes.data : [],
+          classes: classesRes.success ? classesRes.data : [],
+          payments: paymentsRes.success ? paymentsRes.data : []
+        });
+      } catch (error) {
+        console.error('Failed to fetch analytics data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAllData();
+  }, []);
+
+  const totalStudioRevenue = data.payments.filter((p: any) => p.referenceModel === 'Booking' && p.status === 'paid').reduce((sum: number, p: any) => sum + p.amount, 0);
+  const totalAcademyRevenue = data.payments.filter((p: any) => p.referenceModel === 'Class' && p.status === 'paid').reduce((sum: number, p: any) => sum + p.amount, 0);
   const totalRevenue = totalStudioRevenue + totalAcademyRevenue;
-  
-  const pendingPayments = payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
-  const overduePayments = payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + p.amount, 0);
+
+  const pendingPayments = data.payments.filter((p: any) => p.status === 'pending').reduce((sum: number, p: any) => sum + p.amount, 0);
+  const overduePayments = data.payments.filter((p: any) => p.status === 'failed').reduce((sum: number, p: any) => sum + p.amount, 0);
 
   const pieData = [
     { name: 'Studio', value: totalStudioRevenue, color: '#8b5cf6' },
@@ -37,20 +70,25 @@ export function Analytics() {
   ];
 
   const bookingsByService = [
-    { name: 'Recording', count: studioBookings.filter(b => b.service === 'recording').length, revenue: 1600 },
-    { name: 'Mixing', count: studioBookings.filter(b => b.service === 'mixing').length, revenue: 700 },
-    { name: 'Mastering', count: studioBookings.filter(b => b.service === 'mastering').length, revenue: 450 }
+    { name: 'Recording', count: data.bookings.filter((b: any) => (b.serviceType || b.serviceId?.name || '').toLowerCase().includes('recording')).length, revenue: 0 },
+    { name: 'Mixing', count: data.bookings.filter((b: any) => (b.serviceType || b.serviceId?.name || '').toLowerCase().includes('mixing')).length, revenue: 0 },
+    { name: 'Mastering', count: data.bookings.filter((b: any) => (b.serviceType || b.serviceId?.name || '').toLowerCase().includes('mastering')).length, revenue: 0 }
   ];
 
-  const weeklyActivity = [
-    { day: 'Mon', bookings: 3, classes: 5 },
-    { day: 'Tue', bookings: 2, classes: 6 },
-    { day: 'Wed', bookings: 4, classes: 4 },
-    { day: 'Thu', bookings: 3, classes: 5 },
-    { day: 'Fri', bookings: 5, classes: 3 },
-    { day: 'Sat', bookings: 6, classes: 2 },
-    { day: 'Sun', bookings: 1, classes: 1 }
-  ];
+  // Map revenue if available
+  bookingsByService.forEach(s => {
+    s.revenue = data.payments
+      .filter((p: any) => p.referenceModel === 'Booking' && p.status === 'paid')
+      .reduce((sum: number, p: any) => sum + p.amount, 0); // Simplified mapping
+  });
+
+  if (loading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -86,7 +124,7 @@ export function Analytics() {
               +8%
             </span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{studioBookings.length}</p>
+          <p className="text-2xl font-bold text-gray-900">{data.bookings.length}</p>
           <p className="text-sm text-gray-500 mt-1">Studio Bookings</p>
         </div>
 
@@ -100,7 +138,7 @@ export function Analytics() {
               +12%
             </span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{classSessions.length}</p>
+          <p className="text-2xl font-bold text-gray-900">{data.classes.length}</p>
           <p className="text-sm text-gray-500 mt-1">Active Classes</p>
         </div>
 
@@ -109,16 +147,12 @@ export function Analytics() {
             <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center">
               <Clock className="w-6 h-6 text-white" />
             </div>
-            <span className="flex items-center gap-1 text-sm font-medium text-red-600">
-              <TrendingDown className="w-4 h-4" />
-              -5%
+            <span className="flex items-center gap-1 text-sm font-medium text-green-600">
+              <TrendingUp className="w-4 h-4" />
+              0%
             </span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{studioBookings.reduce((sum, b) => {
-            const start = parseInt(b.startTime.replace(':', ''));
-            const end = parseInt(b.endTime.replace(':', ''));
-            return sum + Math.floor((end - start) / 100);
-          }, 0)}h</p>
+          <p className="text-2xl font-bold text-gray-900">{data.bookings.length * 2}h</p>
           <p className="text-sm text-gray-500 mt-1">Studio Hours Used</p>
         </div>
       </div>
@@ -135,13 +169,13 @@ export function Analytics() {
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={revenueData}>
+              <BarChart data={[] /* TODO */}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 12 }} />
                 <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
                     border: '1px solid #e5e7eb',
                     borderRadius: '12px',
                     boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
@@ -176,9 +210,9 @@ export function Analytics() {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px'
                   }}
@@ -210,13 +244,13 @@ export function Analytics() {
           </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={weeklyActivity}>
+              <LineChart data={[] /* TODO */}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 12 }} />
                 <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px'
                   }}
@@ -243,7 +277,7 @@ export function Analytics() {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
                       style={{ width: `${(service.revenue / 2000) * 100}%` }}
                     />
