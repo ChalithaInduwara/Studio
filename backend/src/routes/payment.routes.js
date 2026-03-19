@@ -13,6 +13,7 @@ router.post('/', isAdmin, paymentController.createPayment);
 router.get('/me', paymentController.getMyPayments);
 router.get('/:id', paymentController.getPaymentById);
 router.patch('/:id/status', isAdmin, paymentController.updatePaymentStatus);
+router.patch('/:id/pay', paymentController.payInvoice);
 
 router.route('/:id/invoice')
     .get(paymentController.downloadInvoice);

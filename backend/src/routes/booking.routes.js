@@ -8,6 +8,8 @@ const {
     getBookingById,
     updateBooking,
     deleteBooking,
+    confirmBooking,
+    cancelBooking,
 } = require('../controllers/booking.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { isAdmin, isClient } = require('../middleware/role.middleware');
@@ -25,6 +27,12 @@ router.get('/:id', getBookingById);
 
 // PUT  /api/v1/bookings/:id
 router.put('/:id', updateBooking);
+
+// PATCH /api/v1/bookings/:id/confirm — admin only
+router.patch('/:id/confirm', isAdmin, confirmBooking);
+
+// PATCH /api/v1/bookings/:id/cancel
+router.patch('/:id/cancel', cancelBooking);
 
 // DELETE /api/v1/bookings/:id — admin only
 router.delete('/:id', isAdmin, deleteBooking);

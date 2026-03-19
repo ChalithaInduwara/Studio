@@ -26,7 +26,10 @@ export const paymentService = {
         return response.data;
     },
     async downloadInvoice(id: string) {
-        // For downloads, we might need a different approach with blob
-        return api.get(`/payments/${id}/download-invoice`, { responseType: 'blob' });
+        return api.get(`/payments/${id}/invoice`, { responseType: 'blob' });
+    },
+    async pay(id: string) {
+        const response = await api.patch(`/payments/${id}/pay`);
+        return response.data;
     }
 };

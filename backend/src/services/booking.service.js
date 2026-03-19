@@ -55,8 +55,13 @@ const createBooking = async (data) => {
     // 3. Calculate amount
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);
-    const hours = (eh * 60 + em - sh * 60 - sm) / 60;
-    const totalAmount = hours * studio.hourlyRate;
+    let minutes = (eh * 60 + em) - (sh * 60 + sm);
+
+    // Handle bookings that might cross midnight (though usually restricted by date)
+    if (minutes <= 0) minutes += 24 * 60;
+
+    const hours = minutes / 60;
+    const totalAmount = Math.round(hours * studio.hourlyRate * 100) / 100;
 
     const booking = await Booking.create({ ...data, totalAmount });
 
@@ -115,11 +120,39 @@ const updateBooking = async (id, data, requestingUser) => {
     ]);
 };
 
-// ─── Delete booking ────────────────────────────────────────────────────────
-const deleteBooking = async (id) => {
-    const booking = await Booking.findByIdAndDelete(id);
+const confirmBooking = async (id) => {
+    const booking = await Booking.findById(id).populate('userId studioId');
     if (!booking) { const e = new Error('Booking not found'); e.statusCode = 404; throw e; }
+
+    booking.status = 'confirmed';
+    await booking.save();
+
+    // Create a payment/invoice for this booking
+    const Payment = require('../models/Payment.model');
+    await Payment.create({
+        userId: booking.userId._id,
+        amount: booking.totalAmount,
+        status: 'pending',
+        type: 'studio',
+        referenceId: booking._id,
+        referenceModel: 'Booking',
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+    });
+
+    sendBookingConfirmation(booking).catch(console.error);
     return booking;
 };
 
-module.exports = { getAllBookings, createBooking, getBookingById, updateBooking, deleteBooking };
+const cancelBooking = async (id) => {
+    const booking = await Booking.findById(id);
+    if (!booking) { const e = new Error('Booking not found'); e.statusCode = 404; throw e; }
+
+    booking.status = 'cancelled';
+    await booking.save();
+    return booking;
+};
+
+module.exports = {
+    getAllBookings, createBooking, getBookingById, updateBooking, deleteBooking,
+    confirmBooking, cancelBooking
+};

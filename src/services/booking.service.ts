@@ -17,6 +17,10 @@ export const bookingService = {
         const response = await api.patch(`/bookings/${id}`, bookingData);
         return response.data;
     },
+    async confirm(id: string) {
+        const response = await api.patch(`/bookings/${id}/confirm`);
+        return response.data;
+    },
     async cancel(id: string) {
         const response = await api.patch(`/bookings/${id}/cancel`);
         return response.data;

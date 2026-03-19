@@ -8,26 +8,28 @@ import {
   Loader2
 } from 'lucide-react';
 import { bookingService } from '@/services/booking.service';
-import { classSessions as mockClasses } from '@/data/mockData';
+import { classService } from '@/services/class.service';
 import { cn } from '@/utils/cn';
-import { StudioBooking, ClassSession } from '@/types';
+import { StudioBooking } from '@/types';
 
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'month' | 'week'>('month');
   const [bookings, setBookings] = useState<StudioBooking[]>([]);
-  const [classes] = useState<ClassSession[]>(mockClasses);
+  const [classes, setClasses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await bookingService.getAll();
-        if (res.success) {
-          setBookings(res.data);
-        }
+        const [bookingsRes, classesRes] = await Promise.all([
+          bookingService.getAll(),
+          classService.getAll()
+        ]);
+        if (bookingsRes.success) setBookings(bookingsRes.data);
+        if (classesRes.success) setClasses(classesRes.data);
       } catch (error) {
-        console.error('Failed to fetch calendar bookings:', error);
+        console.error('Failed to fetch calendar data:', error);
       } finally {
         setLoading(false);
       }
@@ -41,6 +43,11 @@ export function CalendarView() {
   ];
 
   const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Map day string to number for comparison
+  const dayMap: Record<string, number> = {
+    'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6
+  };
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -62,8 +69,22 @@ export function CalendarView() {
 
   const getEventsForDate = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
+    const dayName = Object.keys(dayMap).find(key => dayMap[key] === date.getDay());
+
     const dayBookings = bookings.filter(b => b.date.startsWith(dateStr));
-    const dayClasses = classes.filter(c => c.date.startsWith(dateStr));
+
+    const dayClasses = classes.filter(c => {
+      if (c.schedule?.day !== dayName) return false;
+
+      const classStart = c.schedule?.startDate ? new Date(c.schedule.startDate) : null;
+      const classEnd = c.schedule?.endDate ? new Date(c.schedule.endDate) : null;
+
+      if (classStart && date < classStart) return false;
+      if (classEnd && date > classEnd) return false;
+
+      return true;
+    });
+
     return { dayBookings, dayClasses };
   };
 
@@ -74,8 +95,8 @@ export function CalendarView() {
       for (const classSession of dayClasses) {
         const bookingStart = parseInt(booking.startTime.replace(':', ''));
         const bookingEnd = parseInt(booking.endTime.replace(':', ''));
-        const classStart = parseInt(classSession.startTime.replace(':', ''));
-        const classEnd = parseInt(classSession.endTime.replace(':', ''));
+        const classStart = parseInt(classSession.schedule.startTime.replace(':', ''));
+        const classEnd = parseInt(classSession.schedule.endTime.replace(':', ''));
 
         if (bookingStart < classEnd && bookingEnd > classStart) {
           return true;
@@ -100,6 +121,7 @@ export function CalendarView() {
   }
 
   const todayStr = new Date().toISOString().split('T')[0];
+  const { dayBookings: todayBookings, dayClasses: todayClasses } = getEventsForDate(new Date());
 
   return (
     <div className="space-y-6">
@@ -192,7 +214,7 @@ export function CalendarView() {
               <div
                 key={index}
                 className={cn(
-                  "min-h-[100px] border-t border-r border-gray-100 p-2 transition-colors hover:bg-gray-50",
+                  "min-h-[100px] border-t border-r border-gray-100 p-2 transition-colors hover:bg-gray-50 flex flex-col",
                   isToday && "bg-purple-50"
                 )}
               >
@@ -207,28 +229,30 @@ export function CalendarView() {
                     <AlertTriangle className="w-4 h-4 text-red-500" />
                   )}
                 </div>
-                <div className="space-y-1">
-                  {dayBookings.slice(0, 2).map(booking => (
+                <div className="space-y-1 flex-1 overflow-hidden">
+                  {dayBookings.slice(0, 3).map(booking => (
                     <div
                       key={booking._id}
-                      className="flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs truncate"
+                      className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px] font-medium border border-purple-100 truncate"
+                      title={`${booking.startTime} - ${booking.endTime}: ${booking.serviceType}`}
                     >
-                      <Mic2 className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{booking.userId?.name || 'Studio'}</span>
+                      <Mic2 className="w-2.5 h-2.5 flex-shrink-0" />
+                      <span className="truncate">{booking.serviceType || 'Studio'}</span>
                     </div>
                   ))}
-                  {dayClasses.slice(0, 2).map(classItem => (
+                  {dayClasses.slice(0, 3).map(classItem => (
                     <div
-                      key={classItem.id}
-                      className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs truncate"
+                      key={classItem._id}
+                      className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-medium border border-blue-100 truncate"
+                      title={`${classItem.schedule?.startTime} - ${classItem.schedule?.endTime}: ${classItem.className}`}
                     >
-                      <GraduationCap className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{classItem.title}</span>
+                      <GraduationCap className="w-2.5 h-2.5 flex-shrink-0" />
+                      <span className="truncate">{classItem.className}</span>
                     </div>
                   ))}
-                  {(dayBookings.length + dayClasses.length) > 2 && (
-                    <span className="text-xs text-gray-500">
-                      +{dayBookings.length + dayClasses.length - 2} more
+                  {(dayBookings.length + dayClasses.length) > 3 && (
+                    <span className="text-[10px] text-gray-500 font-medium pl-1">
+                      +{dayBookings.length + dayClasses.length - 3} more
                     </span>
                   )}
                 </div>
@@ -241,50 +265,63 @@ export function CalendarView() {
       {/* Today's Schedule */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Studio Bookings - Today</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Mic2 className="w-5 h-5 text-purple-600" />
+            Studio Bookings - Today
+          </h3>
           <div className="space-y-3">
-            {bookings.filter(b => b.date.startsWith(todayStr)).map(booking => (
-              <div key={booking._id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Mic2 className="w-5 h-5 text-purple-600" />
+            {todayBookings.map(booking => (
+              <div key={booking._id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
+                <div className="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center">
+                  <Mic2 className="w-5 h-5 text-purple-700" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">{booking.userId?.name || 'Client'}</p>
-                  <p className="text-sm text-gray-500">{booking.startTime} - {booking.endTime}</p>
+                  <p className="font-semibold text-gray-900">{booking.userId?.name || 'Studio Client'}</p>
+                  <p className="text-sm text-gray-600">{booking.startTime} - {booking.endTime}</p>
                 </div>
-                <span className="px-2 py-1 text-xs font-medium bg-purple-200 text-purple-700 rounded-full capitalize">
+                <span className="px-2.5 py-1 text-xs font-bold bg-white text-purple-700 rounded-full border border-purple-200 uppercase tracking-wider">
                   {booking.serviceType || 'Studio'}
                 </span>
               </div>
             ))}
-            {bookings.filter(b => b.date.startsWith(todayStr)).length === 0 && (
-              <p className="text-gray-500 text-center py-4">No bookings scheduled for today.</p>
+            {todayBookings.length === 0 && (
+              <div className="text-center py-8 text-gray-400">
+                <p>No bookings scheduled for today.</p>
+              </div>
             )}
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Classes - Today</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-blue-600" />
+            Academy Classes - Today
+          </h3>
           <div className="space-y-3">
-            {classes.filter(c => c.date.startsWith(todayStr)).map(classItem => (
-              <div key={classItem.id} className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <GraduationCap className="w-5 h-5 text-blue-600" />
+            {todayClasses.map(classItem => (
+              <div key={classItem._id} className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
+                <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center">
+                  <GraduationCap className="w-5 h-5 text-blue-700" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-gray-900">{classItem.title}</p>
-                  <p className="text-sm text-gray-500">{classItem.startTime} - {classItem.endTime}</p>
+                  <p className="font-semibold text-gray-900">{classItem.className}</p>
+                  <p className="text-sm text-gray-600">{classItem.schedule?.startTime} - {classItem.schedule?.endTime}</p>
                 </div>
-                <span className={cn(
-                  "px-2 py-1 text-xs font-medium rounded-full",
-                  classItem.type === 'online' ? "bg-blue-200 text-blue-700" : "bg-green-200 text-green-700"
-                )}>
-                  {classItem.type}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={cn(
+                    "px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wider",
+                    classItem.onlineLink ? "bg-white text-blue-600 border border-blue-200" : "bg-white text-green-600 border border-green-200"
+                  )}>
+                    {classItem.onlineLink ? 'Online' : 'In-Person'}
+                  </span>
+                  <p className="text-[10px] text-gray-500 font-medium">with {classItem.tutorId?.name}</p>
+                </div>
               </div>
             ))}
-            {classes.filter(c => c.date.startsWith(todayStr)).length === 0 && (
-              <p className="text-gray-500 text-center py-4">No classes scheduled for today.</p>
+            {todayClasses.length === 0 && (
+              <div className="text-center py-8 text-gray-400">
+                <p>No classes scheduled for today.</p>
+              </div>
             )}
           </div>
         </div>

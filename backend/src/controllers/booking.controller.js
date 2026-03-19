@@ -35,4 +35,22 @@ const deleteBooking = asyncHandler(async (req, res) => {
     return successResponse(res, null, 'Booking deleted');
 });
 
-module.exports = { getAllBookings, createBooking, getBookingById, updateBooking, deleteBooking };
+const confirmBooking = asyncHandler(async (req, res) => {
+    const booking = await bookingService.confirmBooking(req.params.id, req.user.role);
+    return successResponse(res, booking, 'Booking confirmed and invoice generated');
+});
+
+const cancelBooking = asyncHandler(async (req, res) => {
+    const booking = await bookingService.cancelBooking(req.params.id);
+    return successResponse(res, booking, 'Booking cancelled');
+});
+
+module.exports = {
+    getAllBookings,
+    createBooking,
+    getBookingById,
+    updateBooking,
+    deleteBooking,
+    confirmBooking,
+    cancelBooking
+};

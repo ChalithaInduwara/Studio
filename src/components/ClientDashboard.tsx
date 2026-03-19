@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
 import {
-    Calendar,
     Mic2,
+    Calendar,
+    CheckCircle,
     FileAudio,
-    Loader2
+    Loader2,
+    DollarSign,
+    Download
 } from 'lucide-react';
 import { bookingService } from '@/services/booking.service';
 import { NewBookingModal } from './modals/NewBookingModal';
 import { cn } from '@/utils/cn';
-import { User, StudioBooking } from '@/types';
+import { StudioBooking, User } from '@/types';
+
+import { paymentService } from '@/services/payment.service';
 
 interface ClientDashboardProps {
     user: User;
@@ -16,25 +21,41 @@ interface ClientDashboardProps {
 
 export function ClientDashboard({ user }: ClientDashboardProps) {
     const [myBookings, setMyBookings] = useState<StudioBooking[]>([]);
+    const [myPayments, setMyPayments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showBookingModal, setShowBookingModal] = useState(false);
 
-    const fetchBookings = async () => {
+    const fetchData = async () => {
         try {
-            const res = await bookingService.getMyBookings();
-            if (res.success) {
-                setMyBookings(res.data);
-            }
+            const [bookingsRes, paymentsRes] = await Promise.all([
+                bookingService.getMyBookings(),
+                paymentService.getMyPayments()
+            ]);
+            if (bookingsRes.success) setMyBookings(bookingsRes.data);
+            if (paymentsRes.success) setMyPayments(paymentsRes.data);
         } catch (error) {
-            console.error('Failed to fetch bookings:', error);
+            console.error('Failed to fetch dashboard data:', error);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchBookings();
+        fetchData();
     }, []);
+
+    const handlePay = async (paymentId: string) => {
+        try {
+            const res = await paymentService.pay(paymentId);
+            if (res.success) {
+                alert('Payment successful! (Dummy Gateway)');
+                fetchData();
+            }
+        } catch (error) {
+            console.error('Payment failed:', error);
+            alert('Payment failed. Please try again.');
+        }
+    };
 
     const stats = [
         {
@@ -44,21 +65,21 @@ export function ClientDashboard({ user }: ClientDashboardProps) {
             color: 'bg-purple-100 text-purple-600'
         },
         {
-            label: 'Project Files',
-            value: '0',
-            icon: FileAudio,
-            color: 'bg-indigo-100 text-indigo-600'
+            label: 'Pending Payments',
+            value: myPayments.filter((p: any) => p.status === 'pending').length.toString(),
+            icon: DollarSign,
+            color: 'bg-amber-100 text-amber-600'
         },
         {
-            label: 'Total Spending',
-            value: `LKR ${myBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0).toLocaleString()}`,
-            icon: Mic2,
+            label: 'Total Paid',
+            value: `LKR ${myPayments.filter((p: any) => p.status === 'paid').reduce((sum: number, p: any) => sum + p.amount, 0).toLocaleString()}`,
+            icon: CheckCircle,
             color: 'bg-green-100 text-green-600'
         },
         {
             label: 'Next Session',
             value: myBookings.length > 0
-                ? new Date(myBookings.filter(b => b.status !== 'cancelled')[0]?.date || Date.now()).toLocaleDateString()
+                ? new Date(myBookings.filter((b: any) => b.status !== 'cancelled')[0]?.date || Date.now()).toLocaleDateString()
                 : 'None',
             icon: Calendar,
             color: 'bg-blue-100 text-blue-600'
@@ -118,7 +139,7 @@ export function ClientDashboard({ user }: ClientDashboardProps) {
 
                         <div className="space-y-4">
                             {myBookings.length > 0 ? (
-                                myBookings.map((booking) => (
+                                myBookings.map((booking: any) => (
                                     <div key={booking._id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -162,6 +183,63 @@ export function ClientDashboard({ user }: ClientDashboardProps) {
 
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                            <DollarSign className="w-5 h-5 text-green-600" />
+                            Payments & Invoices
+                        </h2>
+                        <div className="space-y-4">
+                            {myPayments.length > 0 ? (
+                                myPayments.map((payment: any) => (
+                                    <div key={payment._id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100">
+                                        <div>
+                                            <p className="font-medium text-gray-900">{payment.invoiceNumber}</p>
+                                            <p className="text-xs text-gray-500">{new Date(payment.createdAt).toLocaleDateString()}</p>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-right">
+                                                <p className="font-bold text-gray-900">LKR {payment.amount.toLocaleString()}</p>
+                                                <span className={cn(
+                                                    "text-[10px] font-bold uppercase px-2 py-0.5 rounded-full",
+                                                    payment.status === 'paid' ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                                                )}>
+                                                    {payment.status}
+                                                </span>
+                                            </div>
+                                            {payment.status === 'pending' && (
+                                                <button
+                                                    onClick={() => handlePay(payment._id)}
+                                                    className="px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-lg hover:bg-purple-700 transition-colors"
+                                                >
+                                                    Pay Now
+                                                </button>
+                                            )}
+                                            {payment.status === 'paid' && (
+                                                <button
+                                                    onClick={async () => {
+                                                        const res = await paymentService.downloadInvoice(payment._id);
+                                                        const url = window.URL.createObjectURL(new Blob([res.data]));
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.setAttribute('download', `${payment.invoiceNumber}.pdf`);
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                    }}
+                                                    className="p-2 text-gray-400 hover:text-purple-600 transition-colors"
+                                                    title="Download Invoice"
+                                                >
+                                                    <Download className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-gray-500 text-center py-4 text-sm italic">No payment records found.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
                             <FileAudio className="w-5 h-5 text-indigo-600" />
                             Recent Project Files
                         </h2>
@@ -170,11 +248,11 @@ export function ClientDashboard({ user }: ClientDashboardProps) {
                 </div>
 
                 <div className="space-y-6">
-                    <div className="bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl p-6 text-white shadow-lg">
-                        <h3 className="text-lg font-bold mb-2">Need Engineering?</h3>
-                        <p className="text-purple-100 text-sm mb-4">Our world-class engineers are available for your mixing and mastering needs.</p>
-                        <button className="w-full py-3 bg-white text-indigo-600 rounded-xl font-bold hover:bg-purple-50 transition-colors">
-                            Contact Support
+                    <div className="bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl p-4 text-white shadow-lg">
+                        <h3 className="text-lg font-bold mb-2">Need Support?</h3>
+                        <p className="text-purple-100 text-sm mb-4">Contact us for any help with your session.</p>
+                        <button className="w-full py-2 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-purple-50 transition-colors">
+                            Support
                         </button>
                     </div>
                 </div>
@@ -184,7 +262,7 @@ export function ClientDashboard({ user }: ClientDashboardProps) {
                 <NewBookingModal
                     user={user}
                     onClose={() => setShowBookingModal(false)}
-                    onSuccess={fetchBookings}
+                    onSuccess={fetchData}
                 />
             )}
         </div>

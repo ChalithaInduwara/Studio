@@ -193,17 +193,36 @@ export function InvoiceManagement() {
                                             {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={() => paymentService.downloadInvoice(invoice._id)}
+                                                onClick={async () => {
+                                                    try {
+                                                        const res = await paymentService.downloadInvoice(invoice._id);
+                                                        const url = window.URL.createObjectURL(new Blob([res.data]));
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.setAttribute('download', `${invoice.invoiceNumber || 'invoice'}.pdf`);
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                    } catch (error) {
+                                                        console.error('Download failed:', error);
+                                                    }
+                                                }}
                                                 className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
                                                 title="Download PDF"
                                             >
                                                 <Download className="w-4 h-4" />
                                             </button>
                                             <button
-                                                onClick={() => paymentService.sendInvoiceEmail(invoice._id)}
+                                                onClick={async () => {
+                                                    try {
+                                                        await paymentService.sendInvoiceEmail(invoice._id);
+                                                        alert('Invoice email sent!');
+                                                    } catch (error) {
+                                                        console.error('Email failed:', error);
+                                                    }
+                                                }}
                                                 className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
                                                 title="Send Email"
                                             >

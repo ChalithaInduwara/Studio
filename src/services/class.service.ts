@@ -40,5 +40,18 @@ export const classService = {
     async getMyEnrollments() {
         const response = await api.get('/classes/my/enrollments');
         return response.data;
+    },
+    async getClassStudents(classId: string) {
+        const response = await api.get(`/classes/${classId}/students`);
+        return response.data;
+    },
+    async getAttendance(classId: string, sessionDate?: string) {
+        const url = `/attendance/class/${classId}${sessionDate ? `?sessionDate=${sessionDate}` : ''}`;
+        const response = await api.get(url);
+        return response.data;
+    },
+    async markAttendance(data: { classId: string; sessionDate: string; records: any[] }) {
+        const response = await api.post('/attendance', data);
+        return response.data;
     }
 };

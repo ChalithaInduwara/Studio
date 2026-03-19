@@ -31,6 +31,11 @@ const paymentSchema = new mongoose.Schema(
             type: String,
             enum: ['Booking', 'Class'],
         },
+        type: {
+            type: String,
+            enum: ['studio', 'academy'],
+            required: true,
+        },
         // Invoice details
         invoiceNumber: {
             type: String,

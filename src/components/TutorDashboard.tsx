@@ -10,11 +10,13 @@ import {
     Plus,
     Loader2,
     X,
-    MapPin
+    MapPin,
+    CheckCircle
 } from 'lucide-react';
 import { classService } from '@/services/class.service';
 import { cn } from '@/utils/cn';
 import { User } from '@/types';
+import { AttendanceModal } from './modals/AttendanceModal';
 
 interface TutorDashboardProps {
     user: User;
@@ -24,6 +26,10 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
     const [myClasses, setMyClasses] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [editingClass, setEditingClass] = useState<any | null>(null);
+    const [showAttendanceModal, setShowAttendanceModal] = useState<{ show: boolean, session: any | null }>({
+        show: false,
+        session: null
+    });
 
     const fetchClasses = async () => {
         try {
@@ -147,7 +153,14 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                                                     onClick={() => setEditingClass(session)}
                                                     className="px-4 py-2 text-sm font-bold text-indigo-600 bg-white border border-indigo-100 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
                                                 >
-                                                    Edit Session
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowAttendanceModal({ show: true, session })}
+                                                    className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-all shadow-md flex items-center gap-2"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" />
+                                                    Attendance
                                                 </button>
                                                 {session.onlineLink && (
                                                     <a
@@ -240,6 +253,13 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                         setEditingClass(null);
                         fetchClasses();
                     }}
+                />
+            )}
+
+            {showAttendanceModal.show && (
+                <AttendanceModal
+                    session={showAttendanceModal.session}
+                    onClose={() => setShowAttendanceModal({ show: false, session: null })}
                 />
             )}
         </div>

@@ -183,5 +183,5 @@ const getClassEnrollments = async (classId) => {
 
 module.exports = {
     getAllClasses, getTutorClasses, createClass, getClassById, updateClass, deleteClass,
-    enrollStudent, approveEnrollment, rejectEnrollment, getPendingEnrollments, getStudentEnrollments, getClassEnrollments,
+    enrollStudent, approveEnrollment, rejectEnrollment, getPendingEnrollments, getStudentEnrollments, getClassEnrollments
 };

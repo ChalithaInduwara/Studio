@@ -58,12 +58,18 @@ const sendReminderEmail = asyncHandler(async (req, res) => {
     return successResponse(res, null, 'Payment reminder email sent');
 });
 
+const payInvoice = asyncHandler(async (req, res) => {
+    const payment = await paymentService.processDummyPayment(req.params.id, req.user._id);
+    return successResponse(res, payment, 'Payment processed successfully (Dummy)');
+});
+
 module.exports = {
     getAllPayments,
     createPayment,
     getPaymentById,
     updatePaymentStatus,
     getMyPayments,
+    payInvoice,
     downloadInvoice,
     sendInvoiceEmail,
     sendReminderEmail

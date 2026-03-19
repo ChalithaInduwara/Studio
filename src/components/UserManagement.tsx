@@ -71,6 +71,30 @@ export function UserManagement() {
     studio_client: users.filter((u: any) => u.role === 'studio_client' || u.role === 'client').length
   };
 
+  const handleDeleteUser = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete user "${name}"?`)) return;
+
+    try {
+      const res = await userService.delete(id);
+      if (res.success) {
+        setUsers(prev => prev.filter(u => u._id !== id));
+      }
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      alert('Failed to delete user.');
+    }
+  };
+
+  const handleUserAdded = () => {
+    setShowAddUserModal(false);
+    // Re-fetch users
+    userService.getAll().then(res => {
+      if (res.success) {
+        setUsers(Array.isArray(res.data) ? res.data : (res.data.users || []));
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -185,7 +209,7 @@ export function UserManagement() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredUsers.map(user => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user._id || user.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className={cn(
@@ -224,8 +248,11 @@ export function UserManagement() {
                     </span>
                   </td>
                   <td className="px-6 py-4 hidden lg:table-cell">
-                    <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                      Active
+                    <span className={cn(
+                      "px-2 py-1 text-xs font-medium rounded-full",
+                      user.isActive === false ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                    )}>
+                      {user.isActive === false ? 'Inactive' : 'Active'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -233,8 +260,12 @@ export function UserManagement() {
                       <button className="p-2 text-gray-400 hover:text-purple-600 transition-colors">
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                        <MoreVertical className="w-4 h-4" />
+                      <button
+                        onClick={() => handleDeleteUser(user._id || user.id, user.name)}
+                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                        title="Delete User"
+                      >
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -246,14 +277,46 @@ export function UserManagement() {
       </div>
 
       {/* Add User Modal */}
-      {showAddUserModal && (
-        <AddUserModal onClose={() => setShowAddUserModal(false)} />
-      )}
-    </div>
+      {
+        showAddUserModal && (
+          <AddUserModal
+            onClose={() => setShowAddUserModal(false)}
+            onSuccess={handleUserAdded}
+          />
+        )
+      }
+    </div >
   );
 }
 
-function AddUserModal({ onClose }: { onClose: () => void }) {
+function AddUserModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: 'password123', // Default password for new users
+    role: 'student' as UserRole
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await userService.create(formData);
+      if (res.success) {
+        onSuccess();
+      } else {
+        alert(res.message || 'Failed to create user');
+      }
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      alert('Failed to create user.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
@@ -264,11 +327,14 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <form className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
             <input
               type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Enter full name"
             />
@@ -278,6 +344,9 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
               type="email"
+              required
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Enter email address"
             />
@@ -287,6 +356,8 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
             <input
               type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Enter phone number"
             />
@@ -294,12 +365,16 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <select className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500">
-              <option value="">Select a role</option>
+            <select
+              required
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
               <option value="admin">Administrator</option>
               <option value="tutor">Tutor</option>
               <option value="student">Student</option>
-              <option value="studio_client">Studio Client</option>
+              <option value="client">Studio Client</option>
             </select>
           </div>
 
@@ -307,7 +382,7 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
             <Shield className="w-5 h-5 text-purple-600" />
             <div>
               <p className="text-sm font-medium text-gray-900">Role-based Access</p>
-              <p className="text-xs text-gray-500">User will have access based on their assigned role</p>
+              <p className="text-xs text-gray-500">User will have access based on their assigned role. Default password is 'password123'.</p>
             </div>
           </div>
 
@@ -315,15 +390,17 @@ function AddUserModal({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+              disabled={loading}
+              className="flex-1 py-2 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium hover:shadow-lg transition-shadow"
+              disabled={loading}
+              className="flex-1 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium hover:shadow-lg transition-shadow disabled:opacity-50 flex items-center justify-center"
             >
-              Add User
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Add User'}
             </button>
           </div>
         </form>

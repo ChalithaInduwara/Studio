@@ -39,30 +39,62 @@ export function StudioManagement({ user }: StudioManagementProps) {
   const [files, setFiles] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNewServiceModal, setShowNewServiceModal] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [bookingsRes, materialsRes, servicesRes] = await Promise.all([
+        bookingService.getAll(),
+        materialService.getAll(),
+        studioServiceService.getAll()
+      ]);
+
+      setBookings(bookingsRes.success ? bookingsRes.data : []);
+      setFiles(materialsRes.success ? materialsRes.data : []);
+      setServices(servicesRes.success ? servicesRes.data : []);
+    } catch (error) {
+      console.error('Failed to fetch studio data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [bookingsRes, materialsRes, servicesRes] = await Promise.all([
-          bookingService.getAll(),
-          materialService.getAll(),
-          studioServiceService.getAll()
-        ]);
-
-        setBookings(bookingsRes.success ? bookingsRes.data : []);
-        setFiles(materialsRes.success ? materialsRes.data : []);
-        setServices(servicesRes.success ? servicesRes.data : []);
-      } catch (error) {
-        console.error('Failed to fetch studio data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
+  const handleConfirm = async (id: string) => {
+    try {
+      const res = await bookingService.confirm(id);
+      if (res.success) fetchData();
+    } catch (error) {
+      console.error('Failed to confirm booking:', error);
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
+    try {
+      const res = await bookingService.cancel(id);
+      if (res.success) fetchData();
+    } catch (error) {
+      console.error('Failed to cancel booking:', error);
+    }
+  };
+
+  const handleDeleteService = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this service?')) return;
+    try {
+      const res = await studioServiceService.delete(id);
+      if (res.success) fetchData();
+    } catch (error) {
+      console.error('Failed to delete service:', error);
+    }
+  };
+
   const filteredBookings = bookings.filter(booking => {
-    const matchesSearch = (booking.clientId?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (booking.userId?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -112,7 +144,6 @@ export function StudioManagement({ user }: StudioManagementProps) {
       {/* Bookings Tab */}
       {activeTab === 'bookings' && (
         <div className="space-y-4">
-          {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -147,7 +178,12 @@ export function StudioManagement({ user }: StudioManagementProps) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filteredBookings.map(booking => (
-                <BookingCard key={booking._id} booking={booking} />
+                <BookingCard
+                  key={booking._id}
+                  booking={booking}
+                  onConfirm={() => handleConfirm(booking._id)}
+                  onCancel={() => handleCancel(booking._id)}
+                />
               ))}
             </div>
           )}
@@ -207,24 +243,39 @@ export function StudioManagement({ user }: StudioManagementProps) {
 
       {/* Services Tab */}
       {activeTab === 'services' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {services.map(service => (
-            <div key={service._id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <Mic2 className="w-6 h-6 text-purple-600" />
-                </div>
-                <button className="p-2 text-gray-400 hover:text-gray-600">
-                  <Edit className="w-4 h-4" />
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowNewServiceModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200"
+            >
+              <Plus className="w-5 h-5" />
+              Add Service
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {services.map(service => (
+              <div key={service._id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 group relative text-center">
+                <button
+                  onClick={() => handleDeleteService(service._id)}
+                  className="absolute top-4 right-4 p-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <XCircle className="w-4 h-4" />
                 </button>
+                <div className="flex justify-center mb-4">
+                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <Mic2 className="w-6 h-6 text-purple-600" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">{service.name}</h3>
+                <p className="text-sm text-gray-500 mt-1">{service.description}</p>
+                <div className="mt-4 flex items-baseline justify-center gap-1">
+                  <span className="text-3xl font-bold text-purple-600">LKR {service.price.toLocaleString()}</span>
+                  <span className="text-gray-500">/hr</span>
+                </div>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">{service.name}</h3>
-              <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-purple-600">LKR {service.price.toLocaleString()}</span>
-                <span className="text-gray-500">/hr</span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
@@ -234,12 +285,19 @@ export function StudioManagement({ user }: StudioManagementProps) {
           user={user}
           onClose={() => setShowNewBookingModal(false)}
           onSuccess={() => {
-            // Trigger a re-fetch of bookings
-            const fetchBookings = async () => {
-              const bookingsRes = await bookingService.getAll();
-              setBookings(bookingsRes.success ? bookingsRes.data : []);
-            };
-            fetchBookings();
+            fetchData();
+            setShowNewBookingModal(false);
+          }}
+        />
+      )}
+
+      {/* New Service Modal */}
+      {showNewServiceModal && (
+        <NewServiceModal
+          onClose={() => setShowNewServiceModal(false)}
+          onSuccess={() => {
+            fetchData();
+            setShowNewServiceModal(false);
           }}
         />
       )}
@@ -247,7 +305,97 @@ export function StudioManagement({ user }: StudioManagementProps) {
   );
 }
 
-function BookingCard({ booking }: { booking: StudioBooking }) {
+function NewServiceModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    price: 1500
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await studioServiceService.create(formData);
+      if (res.success) {
+        onSuccess();
+      }
+    } catch (error) {
+      console.error('Failed to create service:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900">New Service</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="e.g., Mixing & Mastering"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Service details..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate (LKR)</label>
+            <input
+              type="number"
+              required
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 border border-gray-200 rounded-xl font-medium hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-2 bg-purple-600 text-white rounded-xl font-medium hover:shadow-lg disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function BookingCard({ booking, onConfirm, onCancel }: {
+  booking: any,
+  onConfirm: () => void,
+  onCancel: () => void
+}) {
   const statusColors = {
     pending: 'bg-yellow-100 text-yellow-700',
     confirmed: 'bg-green-100 text-green-700',
@@ -263,50 +411,50 @@ function BookingCard({ booking }: { booking: StudioBooking }) {
             <User className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <div className="font-medium text-gray-900">{booking.userId.name}</div>
-            <div className="text-sm text-gray-500">{booking.serviceType}</div>
+            <div className="font-medium text-gray-900">{booking.userId?.name || 'Client'}</div>
+            <div className="text-sm text-gray-500 text-purple-600">{booking.serviceType}</div>
           </div>
         </div>
         <div className="text-right">
-          <p className="font-bold text-gray-900">LKR {booking.totalAmount.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 text-purple-600">Total</p>
+          <p className="font-bold text-gray-900">LKR {Math.abs(booking.totalAmount || 0).toLocaleString()}</p>
+          <p className="text-xs text-gray-500">Total</p>
         </div>
-        <span className={cn("px-3 py-1 text-xs font-medium rounded-full capitalize", statusColors[booking.status as keyof typeof statusColors])}>
-          {booking.status}
-        </span>
       </div>
 
       <div className="space-y-2 mb-4">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Calendar className="w-4 h-4" />
-          <span>{new Date(booking.date).toLocaleDateString()}</span>
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2 text-gray-600">
+            <Calendar className="w-4 h-4" />
+            <span>{new Date(booking.date).toLocaleDateString()}</span>
+          </div>
+          <span className={cn("px-3 py-1 text-xs font-medium rounded-full capitalize", statusColors[booking.status as keyof typeof statusColors])}>
+            {booking.status}
+          </span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Clock className="w-4 h-4" />
           <span>{booking.startTime} - {booking.endTime}</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <DollarSign className="w-4 h-4" />
-          <span>LKR {booking.totalAmount?.toLocaleString() || '0'}</span>
-        </div>
       </div>
 
-      {
-        booking.status === 'pending' && (
-          <div className="flex gap-2 pt-4 border-t border-gray-100">
-            <button className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors">
-              <CheckCircle className="w-4 h-4" />
-              Confirm
-            </button>
-            <button className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors">
-              <XCircle className="w-4 h-4" />
-              Cancel
-            </button>
-          </div>
-        )
-      }
-    </div >
+      {booking.status === 'pending' && (
+        <div className="flex gap-2 pt-4 border-t border-gray-100">
+          <button
+            onClick={onConfirm}
+            className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors"
+          >
+            <CheckCircle className="w-4 h-4" />
+            Confirm
+          </button>
+          <button
+            onClick={onCancel}
+            className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+          >
+            <XCircle className="w-4 h-4" />
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
-
-// Shared NewBookingModal component is now in @/components/modals/NewBookingModal.tsx
