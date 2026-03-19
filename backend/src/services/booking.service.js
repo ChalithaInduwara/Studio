@@ -152,6 +152,12 @@ const cancelBooking = async (id) => {
     return booking;
 };
 
+const deleteBooking = async (id) => {
+    const booking = await Booking.findByIdAndDelete(id);
+    if (!booking) { const e = new Error('Booking not found'); e.statusCode = 404; throw e; }
+    return booking;
+};
+
 module.exports = {
     getAllBookings, createBooking, getBookingById, updateBooking, deleteBooking,
     confirmBooking, cancelBooking

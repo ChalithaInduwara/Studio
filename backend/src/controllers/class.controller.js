@@ -67,6 +67,11 @@ const getMyEnrollments = asyncHandler(async (req, res) => {
     return successResponse(res, enrollments, 'My enrollments retrieved');
 });
 
+const getClassStudents = asyncHandler(async (req, res) => {
+    const enrollments = await classService.getClassEnrollments(req.params.id);
+    return successResponse(res, enrollments, 'Enrollments retrieved');
+});
+
 module.exports = {
     getAllClasses, getMyClasses, createClass, getClassById, updateClass, deleteClass,
     enrollInClass, approveEnrollment, rejectEnrollment, getPendingRequests, getMyEnrollments, getClassStudents
