@@ -33,7 +33,7 @@ export function PageRenderer({ currentPage, user }: PageRendererProps) {
             return <TutorResources />;
 
         case 'calendar':
-            return <CalendarView />;
+            return <CalendarView user={user} />;
         case 'invoices':
             if (user.role !== 'admin') return <ClientDashboard user={user} />;
             return <InvoiceManagement />;

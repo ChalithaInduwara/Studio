@@ -13,32 +13,35 @@ import {
 } from 'lucide-react';
 import { materialService } from '@/services/material.service';
 import { cn } from '@/utils/cn';
+import { FileUploadModal } from './modals/FileUploadModal';
 
 export function TutorResources() {
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [loading, setLoading] = useState(true);
     const [resources, setResources] = useState<any[]>([]);
+    const [showUploadModal, setShowUploadModal] = useState(false);
+
+    const fetchResources = async () => {
+        try {
+            setLoading(true);
+            const res = await materialService.getAll();
+            if (res.success) {
+                // In a real app, we might filter for "public" or "tutor-only" materials
+                // For now, we show all available learning materials
+                setResources(res.data.filter((m: any) => m.materialType === 'learning' || !m.classId));
+            }
+        } catch (error) {
+            console.error('Failed to fetch resources:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
     const DOWNLOAD_BASE = API_BASE.replace('/api/v1', '');
 
     useEffect(() => {
-        const fetchResources = async () => {
-            try {
-                setLoading(true);
-                const res = await materialService.getAll();
-                if (res.success) {
-                    // In a real app, we might filter for "public" or "tutor-only" materials
-                    // For now, we show all available learning materials
-                    setResources(res.data.filter((m: any) => m.materialType === 'learning' || !m.classId));
-                }
-            } catch (error) {
-                console.error('Failed to fetch resources:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchResources();
     }, []);
 
@@ -175,13 +178,26 @@ export function TutorResources() {
                         <h2 className="text-2xl font-bold">Have useful material to share?</h2>
                         <p className="text-gray-400 mt-2">Upload your own guides and resources to help other tutors in the community.</p>
                     </div>
-                    <button className="flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-900/40 whitespace-nowrap group">
+                    <button
+                        onClick={() => setShowUploadModal(true)}
+                        className="flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-900/40 whitespace-nowrap group">
                         Contribute Resource
                         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </button>
                 </div>
                 <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl" />
             </div>
+
+            {showUploadModal && (
+                <FileUploadModal
+                    onClose={() => setShowUploadModal(false)}
+                    onSuccess={() => {
+                        setShowUploadModal(false);
+                        fetchResources();
+                    }}
+                    materialType="learning"
+                />
+            )}
         </div>
     );
 }

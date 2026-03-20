@@ -11,11 +11,16 @@ import {
     Loader2,
     X,
     CheckCircle,
-    Upload
+    Upload,
+    Download,
+    FileText as FileIcon
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { User } from '@/types';
 import { classService } from '@/services/class.service';
+import { materialService } from '@/services/material.service';
+import { bookingService } from '@/services/booking.service';
+import { MiniCalendar } from './MiniCalendar';
 import { AttendanceModal } from './modals/AttendanceModal';
 import { FileUploadModal } from './modals/FileUploadModal';
 import api from '@/services/api';
@@ -38,13 +43,17 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
         session: null
     });
     const [activities, setActivities] = useState<any[]>([]);
+    const [allBookings, setAllBookings] = useState<any[]>([]);
+    const [materials, setMaterials] = useState<any[]>([]);
 
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const [classesRes, activitiesRes] = await Promise.all([
+            const [classesRes, activitiesRes, bookingsRes, materialsRes] = await Promise.all([
                 classService.getMyClasses(),
-                api.get('/classes/activities')
+                api.get('/classes/activities'),
+                bookingService.getAll(),
+                materialService.getAll()
             ]);
 
             if (classesRes.success) {
@@ -52,6 +61,13 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
             }
             if (activitiesRes.data?.success) {
                 setActivities(activitiesRes.data.data);
+            }
+            if (bookingsRes.success) {
+                setAllBookings(bookingsRes.data);
+            }
+            if (materialsRes.success) {
+                // Filter for materials uploaded by this tutor
+                setMaterials(materialsRes.data.filter((m: any) => m.uploadedBy?._id === user._id));
             }
         } catch (error) {
             console.error('Failed to fetch dashboard data:', error);
@@ -103,7 +119,9 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                     <h1 className="text-2xl font-bold text-gray-900">Tutor Dashboard</h1>
                     <p className="text-gray-500 mt-1">Hello, {user.name}! Ready for your sessions today?</p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+                <button
+                    onClick={() => setShowUploadModal({ show: true, session: null })}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
                     <Plus className="w-5 h-5" />
                     Add Learning Material
                 </button>
@@ -238,10 +256,57 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                             )}
                         </div>
                     </div>
+
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                <FileIcon className="w-5 h-5 text-purple-600" />
+                                Your Materials
+                            </h2>
+                            <button
+                                onClick={() => {
+                                    const event = new CustomEvent('navigate', { detail: 'resources' });
+                                    window.dispatchEvent(event);
+                                }}
+                                className="text-sm text-indigo-600 font-medium hover:underline"
+                            >
+                                View Hub
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            {materials.slice(0, 5).length > 0 ? (
+                                materials.slice(0, 5).map((m) => (
+                                    <div key={m._id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-transparent hover:border-purple-100 transition-all">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                                                <FileIcon className="w-4 h-4 text-purple-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-900 truncate max-w-[150px]">{m.title}</p>
+                                                <p className="text-xs text-gray-500 uppercase">{m.materialType}</p>
+                                            </div>
+                                        </div>
+                                        <a
+                                            href={`${((import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1').replace('/api/v1', '')}${m.fileUrl}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                        </a>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-center py-4 text-sm text-gray-500 italic">No materials uploaded yet.</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Sidebar panels */}
                 <div className="space-y-6">
+                    <MiniCalendar bookings={allBookings} enrollments={myClasses} />
+
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Links</h2>
                         <div className="grid grid-cols-1 gap-3">
@@ -302,9 +367,9 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                     onClose={() => setShowUploadModal({ show: false, session: null })}
                     onSuccess={() => {
                         setShowUploadModal({ show: false, session: null });
-                        // Refresh logic if needed
+                        fetchDashboardData();
                     }}
-                    classId={showUploadModal.session._id}
+                    classId={showUploadModal.session?._id}
                     materialType="learning"
                 />
             )}

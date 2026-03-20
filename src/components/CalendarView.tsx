@@ -10,9 +10,13 @@ import {
 import { bookingService } from '@/services/booking.service';
 import { classService } from '@/services/class.service';
 import { cn } from '@/utils/cn';
-import { StudioBooking } from '@/types';
+import { StudioBooking, User } from '@/types';
 
-export function CalendarView() {
+interface CalendarViewProps {
+  user: User;
+}
+
+export function CalendarView({ user }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'month' | 'week'>('month');
   const [bookings, setBookings] = useState<StudioBooking[]>([]);
@@ -22,20 +26,53 @@ export function CalendarView() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
+        const role = user?.role;
+        let bookingsPromise;
+        let classesPromise;
+
+        if (role === 'admin' || role === 'tutor') {
+          // Admin/Tutor see all studio bookings for studio availability
+          bookingsPromise = bookingService.getAll();
+        } else {
+          // Students/Clients only see their own bookings
+          bookingsPromise = bookingService.getMyBookings();
+        }
+
+        if (role === 'admin') {
+          classesPromise = classService.getAll();
+        } else if (role === 'tutor') {
+          classesPromise = classService.getMyClasses();
+        } else if (role === 'student' || role === 'client') {
+          classesPromise = classService.getMyEnrollments();
+        }
+
         const [bookingsRes, classesRes] = await Promise.all([
-          bookingService.getAll(),
-          classService.getAll()
+          bookingsPromise,
+          classesPromise
         ]);
+
         if (bookingsRes.success) setBookings(bookingsRes.data);
-        if (classesRes.success) setClasses(classesRes.data);
+        if (classesRes.success) {
+          if (role === 'student' || role === 'client') {
+            // Map enrollment classId to class objects
+            const mappedClasses = classesRes.data
+              .filter((e: any) => e.status === 'active')
+              .map((e: any) => e.classId)
+              .filter(Boolean);
+            setClasses(mappedClasses);
+          } else {
+            setClasses(classesRes.data);
+          }
+        }
       } catch (error) {
         console.error('Failed to fetch calendar data:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
-  }, []);
+    if (user) fetchData();
+  }, [user]);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -234,10 +271,10 @@ export function CalendarView() {
                     <div
                       key={booking._id}
                       className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px] font-medium border border-purple-100 truncate"
-                      title={`${booking.startTime} - ${booking.endTime}: ${booking.serviceType}`}
+                      title={`${booking.startTime} - ${booking.endTime}: ${booking.services?.join(', ')}`}
                     >
                       <Mic2 className="w-2.5 h-2.5 flex-shrink-0" />
-                      <span className="truncate">{booking.serviceType || 'Studio'}</span>
+                      <span className="truncate">{booking.services?.join(', ') || 'Studio'}</span>
                     </div>
                   ))}
                   {dayClasses.slice(0, 3).map(classItem => (
@@ -280,7 +317,7 @@ export function CalendarView() {
                   <p className="text-sm text-gray-600">{booking.startTime} - {booking.endTime}</p>
                 </div>
                 <span className="px-2.5 py-1 text-xs font-bold bg-white text-purple-700 rounded-full border border-purple-200 uppercase tracking-wider">
-                  {booking.serviceType || 'Studio'}
+                  {booking.services?.join(', ') || 'Studio'}
                 </span>
               </div>
             ))}

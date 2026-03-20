@@ -29,6 +29,15 @@ export function App() {
     };
 
     initAuth();
+
+    const handleNavigate = (e: any) => {
+      if (e.detail) {
+        setCurrentPage(e.detail);
+      }
+    };
+
+    window.addEventListener('navigate', handleNavigate);
+    return () => window.removeEventListener('navigate', handleNavigate);
   }, []);
 
   const handleLogout = () => {

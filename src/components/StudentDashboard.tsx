@@ -14,8 +14,10 @@ import {
 } from 'lucide-react';
 import { User } from '@/types';
 import { classService } from '@/services/class.service';
+import { bookingService } from '@/services/booking.service';
 import { materialService } from '@/services/material.service';
 import { cn } from '@/utils/cn';
+import { MiniCalendar } from './MiniCalendar';
 
 const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 const DOWNLOAD_BASE = API_BASE.replace('/api/v1', '');
@@ -27,20 +29,23 @@ interface StudentDashboardProps {
 export function StudentDashboard({ user }: StudentDashboardProps) {
     const [availableClasses, setAvailableClasses] = useState<any[]>([]);
     const [myEnrollments, setMyEnrollments] = useState<any[]>([]);
+    const [myBookings, setMyBookings] = useState<any[]>([]);
     const [materials, setMaterials] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [classesRes, enrollmentsRes, materialsRes] = await Promise.all([
+                const [classesRes, enrollmentsRes, materialsRes, bookingsRes] = await Promise.all([
                     classService.getAll(),
                     classService.getMyEnrollments(),
-                    materialService.getAll()
+                    materialService.getAll(),
+                    bookingService.getMyBookings()
                 ]);
                 if (classesRes.success) setAvailableClasses(classesRes.data);
                 if (enrollmentsRes.success) setMyEnrollments(enrollmentsRes.data);
                 if (materialsRes.success) setMaterials(materialsRes.data);
+                if (bookingsRes.success) setMyBookings(bookingsRes.data);
             } catch (error) {
                 console.error('Failed to fetch dashboard data:', error);
             } finally {
@@ -152,6 +157,8 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
                 </div>
 
                 <div className="space-y-6">
+                    <MiniCalendar bookings={myBookings} enrollments={myEnrollments} />
+
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                             <BookOpen className="w-5 h-5 text-blue-600" />

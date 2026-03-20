@@ -41,7 +41,7 @@ export function Login({ onLogin, onNavigateToSignUp }: LoginProps) {
                     <Music className="w-10 h-10 text-white transform -rotate-3" />
                 </div>
                 <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                    Welcome to Harmony Hub
+                    Welcome to Studio Sync
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-600">
                     Sign in to manage your studio and academy

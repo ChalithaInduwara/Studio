@@ -18,6 +18,7 @@ import { classService } from '@/services/class.service';
 import { paymentService } from '@/services/payment.service';
 import { userService } from '@/services/user.service';
 import { cn } from '@/utils/cn';
+import { MiniCalendar } from './MiniCalendar';
 
 export function AdminDashboard() {
   const [data, setData] = useState<any>({
@@ -99,7 +100,15 @@ export function AdminDashboard() {
   const todayDateStr = new Date().toISOString().split('T')[0];
 
   const todayBookings = data.bookings.filter((b: any) => b.date.startsWith(todayDateStr));
-  const todayClasses = data.classes.filter((c: any) => c.schedule?.day === today);
+  const todayClasses = data.classes.filter((c: any) => {
+    if (!c.isActive || c.schedule?.day !== today) return false;
+    const classStart = c.schedule?.startDate ? new Date(c.schedule.startDate) : null;
+    const classEnd = c.schedule?.endDate ? new Date(c.schedule.endDate) : null;
+    const now = new Date();
+    if (classStart && now < classStart) return false;
+    if (classEnd && now > classEnd) return false;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -214,6 +223,9 @@ export function AdminDashboard() {
               </div>
               <span className="text-lg font-bold text-green-600">+15%</span>
             </div>
+          </div>
+          <div className="mt-6">
+            <MiniCalendar bookings={data.bookings} enrollments={data.classes} />
           </div>
         </div>
       </div>
