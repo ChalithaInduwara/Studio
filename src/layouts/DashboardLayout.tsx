@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Navbar, Sidebar } from '@/components/Navbar';
+import { SupportModal } from '@/components/modals/SupportModal';
 import { User } from '@/types';
 
 interface DashboardLayoutProps {
@@ -12,6 +13,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ user, onLogout, currentPage, setCurrentPage, children }: DashboardLayoutProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -30,12 +32,20 @@ export function DashboardLayout({ user, onLogout, currentPage, setCurrentPage, c
                 setCurrentPage={setCurrentPage}
                 isOpen={isSidebarOpen}
                 setIsOpen={setIsSidebarOpen}
+                onSupportClick={() => setIsSupportModalOpen(true)}
             />
 
             {/* Main Content */}
             <main className="lg:ml-64 p-4 lg:p-6 pt-4">
                 {children}
             </main>
+
+            {/* Support Modal */}
+            <SupportModal
+                user={user}
+                isOpen={isSupportModalOpen}
+                onClose={() => setIsSupportModalOpen(false)}
+            />
         </div>
     );
 }

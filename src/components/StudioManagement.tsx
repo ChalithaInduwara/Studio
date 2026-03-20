@@ -20,10 +20,11 @@ import { studioServiceService } from '@/services/studio-service.service';
 import { materialService } from '@/services/material.service';
 import { NewBookingModal } from './modals/NewBookingModal';
 import { FileUploadModal } from './modals/FileUploadModal';
+import { paymentService } from '@/services/payment.service';
 import { cn } from '@/utils/cn';
 import { User as UserType } from '@/types';
 
-type TabType = 'bookings' | 'files' | 'services';
+type TabType = 'bookings' | 'files' | 'services' | 'payments';
 
 interface StudioManagementProps {
   user: UserType;
@@ -38,9 +39,11 @@ export function StudioManagement({ user }: StudioManagementProps) {
   const [bookings, setBookings] = useState<any[]>([]);
   const [files, setFiles] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewServiceModal, setShowNewServiceModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | undefined>(undefined);
 
   const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
   const DOWNLOAD_BASE = API_BASE.replace('/api/v1', '');
@@ -48,15 +51,17 @@ export function StudioManagement({ user }: StudioManagementProps) {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [bookingsRes, materialsRes, servicesRes] = await Promise.all([
+      const [bookingsRes, materialsRes, servicesRes, paymentsRes] = await Promise.all([
         bookingService.getAll(),
         materialService.getAll(),
-        studioServiceService.getAll()
+        studioServiceService.getAll(),
+        paymentService.getAll()
       ]);
 
       setBookings(bookingsRes.success ? bookingsRes.data : []);
       setFiles(materialsRes.success ? materialsRes.data : []);
       setServices(servicesRes.success ? servicesRes.data : []);
+      setPayments(paymentsRes.success ? paymentsRes.data : []);
     } catch (error) {
       console.error('Failed to fetch studio data:', error);
     } finally {
@@ -117,6 +122,7 @@ export function StudioManagement({ user }: StudioManagementProps) {
     { id: 'bookings', label: 'Bookings', icon: Calendar },
     { id: 'files', label: 'Project Files', icon: FileAudio },
     { id: 'services', label: 'Services & Rates', icon: DollarSign },
+    { id: 'payments', label: 'Payments', icon: CheckCircle },
   ];
 
   return (
@@ -197,6 +203,10 @@ export function StudioManagement({ user }: StudioManagementProps) {
                   booking={booking}
                   onConfirm={() => handleConfirm(booking._id)}
                   onCancel={() => handleCancel(booking._id)}
+                  onUpload={() => {
+                    setSelectedBookingId(booking._id);
+                    setShowUploadModal(true);
+                  }}
                 />
               ))}
             </div>
@@ -304,7 +314,7 @@ export function StudioManagement({ user }: StudioManagementProps) {
                 <p className="text-sm text-gray-500 mt-1">{service.description}</p>
                 <div className="mt-4 flex items-baseline justify-center gap-1">
                   <span className="text-3xl font-bold text-purple-600">LKR {service.price.toLocaleString()}</span>
-                  <span className="text-gray-500">/hr</span>
+                  <span className="text-gray-500">{service.unit}</span>
                 </div>
               </div>
             ))}
@@ -312,7 +322,54 @@ export function StudioManagement({ user }: StudioManagementProps) {
         </div>
       )}
 
-      {/* New Booking Modal */}
+      {/* Payments Tab */}
+      {activeTab === 'payments' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Invoice</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Client</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Amount</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {payments.map(payment => (
+                <tr key={payment._id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="px-6 py-4">
+                    <p className="font-black text-gray-900">{payment.invoiceNumber || `INV-${payment._id.slice(-6).toUpperCase()}`}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="font-bold text-gray-700">{payment.userId?.name || 'Unknown'}</p>
+                    <p className="text-[10px] text-gray-400">{payment.userId?.email}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="font-black text-indigo-600">LKR {payment.amount?.toLocaleString()}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg",
+                      payment.status === 'paid' ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                    )}>
+                      {payment.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-medium text-gray-500">{new Date(payment.createdAt).toLocaleDateString()}</p>
+                  </td>
+                </tr>
+              ))}
+              {payments.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-bold">No payment records found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
       {showNewBookingModal && (
         <NewBookingModal
           user={user}
@@ -338,11 +395,16 @@ export function StudioManagement({ user }: StudioManagementProps) {
       {/* File Upload Modal */}
       {showUploadModal && (
         <FileUploadModal
-          onClose={() => setShowUploadModal(false)}
+          onClose={() => {
+            setShowUploadModal(false);
+            setSelectedBookingId(undefined);
+          }}
           onSuccess={() => {
             fetchData();
             setShowUploadModal(false);
+            setSelectedBookingId(undefined);
           }}
+          bookingId={selectedBookingId}
           materialType="recording"
         />
       )}
@@ -355,7 +417,9 @@ function NewServiceModal({ onClose, onSuccess }: { onClose: () => void, onSucces
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    price: 1500
+    price: 1500,
+    unit: 'per hour',
+    duration: 60
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -404,13 +468,36 @@ function NewServiceModal({ onClose, onSuccess }: { onClose: () => void, onSucces
               placeholder="Service details..."
             />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Price (LKR)</label>
+              <input
+                type="number"
+                required
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+              <select
+                value={formData.unit}
+                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="per hour">per hour</option>
+                <option value="per session">per session</option>
+              </select>
+            </div>
+          </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate (LKR)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Duration (mins)</label>
             <input
               type="number"
               required
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+              value={formData.duration}
+              onChange={(e) => setFormData({ ...formData, duration: Number(e.target.value) })}
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>
@@ -436,10 +523,11 @@ function NewServiceModal({ onClose, onSuccess }: { onClose: () => void, onSucces
   );
 }
 
-function BookingCard({ booking, onConfirm, onCancel }: {
+function BookingCard({ booking, onConfirm, onCancel, onUpload }: {
   booking: any,
   onConfirm: () => void,
-  onCancel: () => void
+  onCancel: () => void,
+  onUpload: () => void
 }) {
   const statusColors = {
     pending: 'bg-yellow-100 text-yellow-700',
@@ -457,7 +545,7 @@ function BookingCard({ booking, onConfirm, onCancel }: {
           </div>
           <div>
             <div className="font-medium text-gray-900">{booking.userId?.name || 'Client'}</div>
-            <div className="text-sm text-gray-500 text-purple-600">{booking.serviceType}</div>
+            <div className="text-sm text-gray-500 text-purple-600">{booking.services?.join(', ') || 'Studio'}</div>
           </div>
         </div>
         <div className="text-right">
@@ -482,24 +570,33 @@ function BookingCard({ booking, onConfirm, onCancel }: {
         </div>
       </div>
 
-      {booking.status === 'pending' && (
-        <div className="flex gap-2 pt-4 border-t border-gray-100">
-          <button
-            onClick={onConfirm}
-            className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors"
-          >
-            <CheckCircle className="w-4 h-4" />
-            Confirm
-          </button>
-          <button
-            onClick={onCancel}
-            className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
-          >
-            <XCircle className="w-4 h-4" />
-            Cancel
-          </button>
-        </div>
-      )}
+      <div className="flex gap-2 pt-4 border-t border-gray-100">
+        <button
+          onClick={onUpload}
+          className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors"
+        >
+          <Upload className="w-4 h-4" />
+          Upload
+        </button>
+        {booking.status === 'pending' && (
+          <>
+            <button
+              onClick={onConfirm}
+              className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Confirm
+            </button>
+            <button
+              onClick={onCancel}
+              className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+            >
+              <XCircle className="w-4 h-4" />
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

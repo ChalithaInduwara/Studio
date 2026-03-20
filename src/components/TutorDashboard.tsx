@@ -18,9 +18,8 @@ import { User } from '@/types';
 import { classService } from '@/services/class.service';
 import { AttendanceModal } from './modals/AttendanceModal';
 import { FileUploadModal } from './modals/FileUploadModal';
+import api from '@/services/api';
 
-const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
-const DOWNLOAD_BASE = API_BASE.replace('/api/v1', '');
 
 interface TutorDashboardProps {
     user: User;
@@ -38,23 +37,31 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
         show: false,
         session: null
     });
+    const [activities, setActivities] = useState<any[]>([]);
 
-    const fetchClasses = async () => {
+    const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const res = await classService.getMyClasses();
-            if (res.success) {
-                setMyClasses(res.data);
+            const [classesRes, activitiesRes] = await Promise.all([
+                classService.getMyClasses(),
+                api.get('/classes/activities')
+            ]);
+
+            if (classesRes.success) {
+                setMyClasses(classesRes.data);
+            }
+            if (activitiesRes.data?.success) {
+                setActivities(activitiesRes.data.data);
             }
         } catch (error) {
-            console.error('Failed to fetch classes:', error);
+            console.error('Failed to fetch dashboard data:', error);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchClasses();
+        fetchDashboardData();
     }, []);
 
     const today = new Date().toLocaleDateString('en-GB', { weekday: 'long' });
@@ -205,24 +212,30 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                             <button className="text-sm text-indigo-600 font-medium hover:underline">View All</button>
                         </div>
                         <div className="space-y-4">
-                            <div className="flex items-start gap-4 p-4 rounded-xl bg-gray-50">
-                                <div className="p-2 bg-green-100 rounded-lg">
-                                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                            {activities.length > 0 ? (
+                                activities.map((activity) => (
+                                    <div key={activity.id} className="flex items-start gap-4 p-4 rounded-xl bg-gray-50 border border-transparent hover:border-indigo-100 transition-all">
+                                        <div className={cn(
+                                            "p-2 rounded-lg",
+                                            activity.type === 'enrollment' ? "bg-green-100 text-green-600" : "bg-blue-100 text-blue-600"
+                                        )}>
+                                            {activity.type === 'enrollment' ? <Users className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900">
+                                                {activity.studentName} enrolled in <span className="text-indigo-600 font-bold">{activity.className}</span>
+                                            </p>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                {new Date(activity.timestamp).toLocaleDateString()} at {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-6 text-gray-500 italic text-sm">
+                                    No recent activities to show.
                                 </div>
-                                <div>
-                                    <p className="text-sm font-medium text-gray-900">Attendance recorded for Advanced Guitar</p>
-                                    <p className="text-xs text-gray-500 mt-1">Today at 10:30 AM</p>
-                                </div>
-                            </div>
-                            <div className="flex items-start gap-4 p-4 rounded-xl bg-gray-50">
-                                <div className="p-2 bg-blue-100 rounded-lg">
-                                    <FileText className="w-5 h-5 text-blue-600" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-gray-900">New material uploaded: "Intro to Scales.pdf"</p>
-                                    <p className="text-xs text-gray-500 mt-1">Yesterday at 4:15 PM</p>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -252,7 +265,10 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                             <h3 className="text-lg font-bold mb-2">Tutor Resources</h3>
                             <p className="text-indigo-100 text-sm mb-4">Access teaching guides, templates, and pedagogical resources.</p>
                             <button
-                                onClick={() => window.open(DOWNLOAD_BASE, '_blank')}
+                                onClick={() => {
+                                    const event = new CustomEvent('navigate', { detail: 'resources' });
+                                    window.dispatchEvent(event);
+                                }}
                                 className="w-full py-2 bg-white text-indigo-600 rounded-xl font-bold text-sm shadow-lg hover:bg-indigo-50 transition-colors"
                             >
                                 Open Resource Hub
@@ -269,7 +285,7 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                     onClose={() => setEditingClass(null)}
                     onSuccess={() => {
                         setEditingClass(null);
-                        fetchClasses();
+                        fetchDashboardData();
                     }}
                 />
             )}

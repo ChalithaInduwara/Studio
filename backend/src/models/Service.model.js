@@ -16,7 +16,8 @@ const serviceSchema = new mongoose.Schema(
         },
         description: { type: String, trim: true },
         price: { type: Number, default: 0, min: 0 },
-        unit: { type: String, default: 'per hour' }, // "per hour", "flat rate", etc.
+        unit: { type: String, default: 'per hour' }, // "per hour", "per session", etc.
+        duration: { type: Number, default: 60 }, // Estimated duration in minutes
         isActive: { type: Boolean, default: true },
     },
     { timestamps: true }

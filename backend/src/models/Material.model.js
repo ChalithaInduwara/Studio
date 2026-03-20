@@ -22,7 +22,7 @@ const materialSchema = new mongoose.Schema(
         mimeType: { type: String },
         materialType: {
             type: String,
-            enum: ['learning', 'project'],
+            enum: ['learning', 'recording', 'exam', 'project', 'other'],
             default: 'learning',
         },
         // Either a class or a booking can own a material

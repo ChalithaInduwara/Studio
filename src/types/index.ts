@@ -31,7 +31,7 @@ export interface StudioBooking {
     name: string;
     hourlyRate: number;
   };
-  serviceType: string;
+  services: string[];
   date: string;
   startTime: string;
   endTime: string;

@@ -146,9 +146,69 @@ const sendPaymentReminder = async (payment) => {
   });
 };
 
+/**
+ * Send a support request email to the admin.
+ * @param {object} user - The user reporting the issue
+ * @param {string} message - The issue description
+ */
+const sendSupportEmail = async (user, message) => {
+  if (!process.env.SMTP_USER) return;
+
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;
+
+  await getTransporter().sendMail({
+    from: FROM,
+    to: adminEmail,
+    replyTo: user.email,
+    subject: `🆘 New Support Request from ${user.name}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+        <div style="background: #4f46e5; padding: 20px; color: white;">
+          <h2 style="margin: 0;">Support Request Received</h2>
+        </div>
+        <div style="padding: 24px;">
+          <p style="color: #4b5563; font-size: 14px;">A new support request has been submitted through the StudioSync dashboard.</p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-size: 13px; width: 100px;">User</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; color: #111827; font-weight: 600;">${user.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-size: 13px;">Email</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; color: #111827;">${user.email}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-size: 13px;">Role</td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; color: #111827; text-transform: capitalize;">${user.role}</td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 30px;">
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 8px;">Message:</p>
+            <div style="padding: 20px; background: #f9fafb; border-radius: 8px; color: #111827; line-height: 1.6; border: 1px solid #f3f4f6;">
+              ${message.replace(/\n/g, '<br/>')}
+            </div>
+          </div>
+
+          <div style="margin-top: 30px; text-align: center;">
+            <a href="mailto:${user.email}" style="display: inline-block; padding: 12px 24px; background: #4f46e5; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
+              Reply Directly
+            </a>
+          </div>
+        </div>
+        <div style="background: #f9fafb; padding: 16px; text-align: center; color: #9ca3af; font-size: 12px;">
+          This is an automated notification from StudioSync.
+        </div>
+      </div>
+    `,
+  });
+};
+
 module.exports = {
   sendBookingConfirmation,
   sendEnrollmentConfirmation,
   sendInvoiceEmail,
-  sendPaymentReminder
+  sendPaymentReminder,
+  sendSupportEmail
 };

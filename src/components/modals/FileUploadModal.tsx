@@ -19,7 +19,7 @@ interface FileUploadModalProps {
     onSuccess: () => void;
     classId?: string;
     bookingId?: string;
-    materialType?: 'learning' | 'recording' | 'exam' | 'other';
+    materialType?: 'learning' | 'recording' | 'exam' | 'project' | 'other';
 }
 
 export function FileUploadModal({

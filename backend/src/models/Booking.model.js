@@ -23,11 +23,10 @@ const bookingSchema = new mongoose.Schema(
             ref: 'Studio',
             required: [true, 'Studio ID is required'],
         },
-        // A human-readable description of the service booked (e.g. "Recording Session")
-        serviceType: {
-            type: String,
-            trim: true,
-            default: 'General',
+        // Array of service names selected for this booking
+        services: {
+            type: [String],
+            default: [],
         },
         date: {
             type: Date,
@@ -60,8 +59,17 @@ const bookingSchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
     }
 );
+
+// ── Virtual for Materials ──────────────────────────────────────────────────
+bookingSchema.virtual('materials', {
+    ref: 'Material',
+    localField: '_id',
+    foreignField: 'bookingId',
+});
 
 // ── Index for conflict-detection queries ───────────────────────────────────
 bookingSchema.index({ studioId: 1, date: 1, status: 1 });

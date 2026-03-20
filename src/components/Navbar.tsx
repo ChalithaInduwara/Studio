@@ -13,7 +13,8 @@ import {
   Users,
   Settings,
   LogOut,
-  DollarSign
+  DollarSign,
+  BookOpen
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 // import { notifications as notificationData } from '@/data/mockData';
@@ -148,9 +149,10 @@ interface SidebarProps {
   setCurrentPage: (page: string) => void;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  onSupportClick: () => void;
 }
 
-export function Sidebar({ user, currentPage, setCurrentPage, isOpen, setIsOpen }: SidebarProps) {
+export function Sidebar({ user, currentPage, setCurrentPage, isOpen, setIsOpen, onSupportClick }: SidebarProps) {
   const adminMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'studio', label: 'Studio Bookings', icon: Mic2 },
@@ -164,6 +166,7 @@ export function Sidebar({ user, currentPage, setCurrentPage, isOpen, setIsOpen }
   const tutorMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'academy', label: 'My Classes', icon: GraduationCap },
+    { id: 'resources', label: 'Tutor Resources', icon: BookOpen },
     { id: 'calendar', label: 'Schedule', icon: Calendar },
   ];
 
@@ -227,7 +230,10 @@ export function Sidebar({ user, currentPage, setCurrentPage, isOpen, setIsOpen }
           <div className="bg-gradient-to-br from-purple-100 to-indigo-100 rounded-xl p-4">
             <p className="text-sm font-medium text-purple-900">Need Help?</p>
             <p className="text-xs text-purple-700 mt-1">Contact support for assistance</p>
-            <button className="mt-3 w-full py-2 bg-white text-purple-600 text-sm font-medium rounded-lg shadow-sm hover:shadow transition-shadow">
+            <button
+              onClick={onSupportClick}
+              className="mt-3 w-full py-2 bg-white text-purple-600 text-sm font-medium rounded-lg shadow-sm hover:shadow transition-shadow"
+            >
               Get Support
             </button>
           </div>

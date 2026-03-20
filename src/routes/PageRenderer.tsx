@@ -8,6 +8,7 @@ import { AcademyManagement } from '@/components/AcademyManagement';
 import { CalendarView } from '@/components/CalendarView';
 import { UserManagement } from '@/components/UserManagement';
 import { Analytics } from '@/components/Analytics';
+import { TutorResources } from '@/components/TutorResources';
 import { User } from '@/types';
 
 interface PageRendererProps {
@@ -23,17 +24,24 @@ export function PageRenderer({ currentPage, user }: PageRendererProps) {
             if (user.role === 'client') return <ClientDashboard user={user} />;
             return <StudentDashboard user={user} />;
         case 'studio':
-            return <StudioManagement user={user} />;
+            if (user.role === 'admin') return <StudioManagement user={user} />;
+            return <ClientDashboard user={user} />;
         case 'academy':
-            return <AcademyManagement user={user} />;
+            if (user.role === 'admin' || user.role === 'tutor') return <AcademyManagement user={user} />;
+            return <StudentDashboard user={user} />;
+        case 'resources':
+            return <TutorResources />;
 
         case 'calendar':
             return <CalendarView />;
         case 'invoices':
+            if (user.role !== 'admin') return <ClientDashboard user={user} />;
             return <InvoiceManagement />;
         case 'users':
+            if (user.role !== 'admin') return <ClientDashboard user={user} />;
             return <UserManagement />;
         case 'analytics':
+            if (user.role !== 'admin') return <ClientDashboard user={user} />;
             return <Analytics />;
         default:
             if (user.role === 'admin') return <AdminDashboard />;

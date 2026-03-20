@@ -6,7 +6,8 @@ export const bookingService = {
         return response.data;
     },
     async getMyBookings() {
-        const response = await api.get('/bookings/me');
+        // Backend handles filtering by role and req.user._id automatically on /bookings
+        const response = await api.get('/bookings');
         return response.data;
     },
     async create(bookingData: any) {

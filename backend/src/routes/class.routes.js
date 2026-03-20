@@ -6,6 +6,7 @@ const {
     getAllClasses, getMyClasses, createClass, getClassById, updateClass, deleteClass,
     enrollInClass, approveEnrollment, rejectEnrollment, getPendingRequests, getMyEnrollments, getClassStudents,
 } = require('../controllers/class.controller');
+const { getTutorActivities } = require('../controllers/activity.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { isAdmin, isTutor } = require('../middleware/role.middleware');
 
@@ -19,6 +20,7 @@ router.get('/', getAllClasses);
 router.post('/', isTutor, createClass);
 
 router.get('/me', isTutor, getMyClasses);               // tutor's own classes
+router.get('/activities', isTutor, getTutorActivities);   // tutor's activities
 router.get('/pending-requests', isAdmin, getPendingRequests);
 router.get('/my/enrollments', getMyEnrollments);         // student's enrollments
 router.patch('/enrollments/:id/approve', isAdmin, approveEnrollment);

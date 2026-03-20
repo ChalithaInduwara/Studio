@@ -24,6 +24,7 @@ import {
 import { bookingService } from '@/services/booking.service';
 import { classService } from '@/services/class.service';
 import { paymentService } from '@/services/payment.service';
+import { cn } from '@/utils/cn';
 
 export function Analytics() {
   const [data, setData] = useState<any>({
@@ -64,9 +65,6 @@ export function Analytics() {
     .reduce((sum: number, p: any) => sum + p.amount, 0);
   const totalRevenue = totalStudioRevenue + totalAcademyRevenue;
 
-  const pendingPayments = data.payments.filter((p: any) => p.status === 'pending').reduce((sum: number, p: any) => sum + p.amount, 0);
-  const overduePayments = data.payments.filter((p: any) => p.status === 'failed').reduce((sum: number, p: any) => sum + p.amount, 0);
-
   const pieData = [
     { name: 'Studio', value: totalStudioRevenue, color: '#8b5cf6' },
     { name: 'Academy', value: totalAcademyRevenue, color: '#3b82f6' }
@@ -90,22 +88,64 @@ export function Analytics() {
     return result;
   };
 
-  const revenueTrend = [
-    { month: 'Last Month', studio: totalStudioRevenue * 0.8, academy: totalAcademyRevenue * 0.9 },
-    { month: 'This Month', studio: totalStudioRevenue, academy: totalAcademyRevenue }
-  ];
+  // Dynamic Revenue Trend Calculation
+  const getRevenueTrend = () => {
+    const currentMonth = new Date().getMonth();
+    const result = [];
+
+    for (let i = 1; i >= 0; i--) {
+      const monthIndex = (currentMonth - i + 12) % 12;
+      const monthYear = new Date().getFullYear() - (currentMonth - i < 0 ? 1 : 0);
+
+      const monthPayments = data.payments.filter((p: any) => {
+        const d = new Date(p.paidAt || p.createdAt);
+        return d.getMonth() === monthIndex && d.getFullYear() === monthYear && p.status === 'paid';
+      });
+
+      result.push({
+        month: i === 0 ? 'This Month' : 'Last Month',
+        studio: monthPayments.filter((p: any) => p.type === 'studio').reduce((sum: number, p: any) => sum + p.amount, 0),
+        academy: monthPayments.filter((p: any) => p.type === 'academy').reduce((sum: number, p: any) => sum + p.amount, 0)
+      });
+    }
+    return result;
+  };
+
+  const revenueTrendData = getRevenueTrend();
 
   const bookingsByService = [
-    { name: 'Recording', count: data.bookings.filter((b: any) => (b.serviceType || '').toLowerCase().includes('recording')).length, revenue: 0 },
-    { name: 'Mixing', count: data.bookings.filter((b: any) => (b.serviceType || '').toLowerCase().includes('mixing')).length, revenue: 0 },
-    { name: 'Mastering', count: data.bookings.filter((b: any) => (b.serviceType || '').toLowerCase().includes('mastering')).length, revenue: 0 }
+    { name: 'Recording', count: 0, revenue: 0 },
+    { name: 'Mixing', count: 0, revenue: 0 },
+    { name: 'Mastering', count: 0, revenue: 0 }
   ];
 
   bookingsByService.forEach(s => {
+    // Multi-service aware count
+    const matchingBookings = data.bookings.filter((b: any) =>
+      (b.services || []).some((service: string) => service.toLowerCase().includes(s.name.toLowerCase()))
+    );
+    s.count = matchingBookings.length;
+
+    // Aggregate revenue from payments where the associated booking has this service
+    // Note: This is an estimation for multi-service payments
     s.revenue = data.payments
-      .filter((p: any) => p.type === 'studio' && p.status === 'paid' && (p.referenceId?.serviceType || '').toLowerCase().includes(s.name.toLowerCase()))
+      .filter((p: any) =>
+        p.status === 'paid' &&
+        p.type === 'studio' &&
+        p.referenceId?.services?.some((service: string) => service.toLowerCase().includes(s.name.toLowerCase()))
+      )
       .reduce((sum: number, p: any) => sum + p.amount, 0);
   });
+
+  // Accurate Hours Calculation
+  const totalHours = data.bookings.reduce((sum: number, b: any) => {
+    if (!b.startTime || !b.endTime) return sum;
+    const [sh, sm] = b.startTime.split(':').map(Number);
+    const [eh, em] = b.endTime.split(':').map(Number);
+    let diff = (eh * 60 + em) - (sh * 60 + sm);
+    if (diff <= 0) diff += 24 * 60;
+    return sum + (diff / 60);
+  }, 0);
 
   if (loading) {
     return (
@@ -173,8 +213,8 @@ export function Analytics() {
               <Clock className="w-6 h-6 text-white" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{data.bookings.length * 2}h</p>
-          <p className="text-sm text-gray-500 mt-1">Est. Studio Hours</p>
+          <p className="text-2xl font-bold text-gray-900">{totalHours.toFixed(1)}h</p>
+          <p className="text-sm text-gray-500 mt-1">Total Studio Hours</p>
         </div>
       </div>
 
@@ -189,7 +229,7 @@ export function Analytics() {
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={revenueTrend}>
+              <BarChart data={revenueTrendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 12 }} />
                 <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} />
@@ -308,26 +348,43 @@ export function Analytics() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Payment Status</h2>
-            <p className="text-sm text-gray-500">Outstanding amounts</p>
+            <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+            <p className="text-sm text-gray-500">Live payment log</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-4 bg-green-50 rounded-xl border border-green-100">
-            <p className="text-sm text-gray-600 mb-1 font-medium text-green-700">Collected</p>
-            <p className="text-2xl font-bold text-green-600">LKR {totalRevenue.toLocaleString()}</p>
-          </div>
-          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-            <p className="text-sm text-gray-600 mb-1 font-medium text-amber-700">Pending</p>
-            <p className="text-2xl font-bold text-amber-600">LKR {pendingPayments.toLocaleString()}</p>
-          </div>
-          <div className="p-4 bg-red-50 rounded-xl border border-red-100">
-            <p className="text-sm text-gray-600 mb-1 font-medium text-red-700">Failed/Overdue</p>
-            <p className="text-2xl font-bold text-red-600">LKR {overduePayments.toLocaleString()}</p>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Inovice</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Client</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Amount</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {data.payments.slice(0, 5).map((payment: any) => (
+                <tr key={payment._id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900">{payment.invoiceNumber}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600 font-medium">{payment.userId?.name}</td>
+                  <td className="px-6 py-4 text-sm font-black text-indigo-600">LKR {payment.amount.toLocaleString()}</td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg",
+                      payment.status === 'paid' ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                    )}>
+                      {payment.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-400">{new Date(payment.paidAt || payment.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

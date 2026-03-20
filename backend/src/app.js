@@ -20,6 +20,7 @@ const serviceRoutes = require('./routes/service.routes');
 const materialRoutes = require('./routes/material.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
+const supportRoutes = require('./routes/support.routes');
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use('/api/v1/services', serviceRoutes);
 app.use('/api/v1/materials', materialRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/support', supportRoutes);
 
 // ── 404 & global error handlers ───────────────────────────────────────────
 app.use(notFound);
