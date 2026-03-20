@@ -10,13 +10,17 @@ import {
     Plus,
     Loader2,
     X,
-    MapPin,
-    CheckCircle
+    CheckCircle,
+    Upload
 } from 'lucide-react';
-import { classService } from '@/services/class.service';
 import { cn } from '@/utils/cn';
 import { User } from '@/types';
+import { classService } from '@/services/class.service';
 import { AttendanceModal } from './modals/AttendanceModal';
+import { FileUploadModal } from './modals/FileUploadModal';
+
+const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+const DOWNLOAD_BASE = API_BASE.replace('/api/v1', '');
 
 interface TutorDashboardProps {
     user: User;
@@ -27,6 +31,10 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
     const [loading, setLoading] = useState(true);
     const [editingClass, setEditingClass] = useState<any | null>(null);
     const [showAttendanceModal, setShowAttendanceModal] = useState<{ show: boolean, session: any | null }>({
+        show: false,
+        session: null
+    });
+    const [showUploadModal, setShowUploadModal] = useState<{ show: boolean, session: any | null }>({
         show: false,
         session: null
     });
@@ -150,6 +158,13 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <button
+                                                    onClick={() => setShowUploadModal({ show: true, session })}
+                                                    className="p-2 text-indigo-600 bg-white border border-indigo-100 rounded-xl hover:bg-indigo-50 transition-all shadow-sm flex items-center gap-2"
+                                                    title="Upload Material"
+                                                >
+                                                    <Upload className="w-5 h-5" />
+                                                </button>
+                                                <button
                                                     onClick={() => setEditingClass(session)}
                                                     className="px-4 py-2 text-sm font-bold text-indigo-600 bg-white border border-indigo-100 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
                                                 >
@@ -236,7 +251,10 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                         <div className="relative z-10">
                             <h3 className="text-lg font-bold mb-2">Tutor Resources</h3>
                             <p className="text-indigo-100 text-sm mb-4">Access teaching guides, templates, and pedagogical resources.</p>
-                            <button className="w-full py-2 bg-white text-indigo-600 rounded-xl font-bold text-sm shadow-lg hover:bg-indigo-50 transition-colors">
+                            <button
+                                onClick={() => window.open(DOWNLOAD_BASE, '_blank')}
+                                className="w-full py-2 bg-white text-indigo-600 rounded-xl font-bold text-sm shadow-lg hover:bg-indigo-50 transition-colors"
+                            >
                                 Open Resource Hub
                             </button>
                         </div>
@@ -260,6 +278,18 @@ export function TutorDashboard({ user }: TutorDashboardProps) {
                 <AttendanceModal
                     session={showAttendanceModal.session}
                     onClose={() => setShowAttendanceModal({ show: false, session: null })}
+                />
+            )}
+
+            {showUploadModal.show && (
+                <FileUploadModal
+                    onClose={() => setShowUploadModal({ show: false, session: null })}
+                    onSuccess={() => {
+                        setShowUploadModal({ show: false, session: null });
+                        // Refresh logic if needed
+                    }}
+                    classId={showUploadModal.session._id}
+                    materialType="learning"
                 />
             )}
         </div>

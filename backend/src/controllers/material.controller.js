@@ -93,10 +93,23 @@ const getMaterialById = asyncHandler(async (req, res) => {
     return successResponse(res, m, 'Material retrieved');
 });
 
+const fs = require('fs');
+
 const deleteMaterial = asyncHandler(async (req, res) => {
-    const m = await Material.findByIdAndDelete(req.params.id);
+    const m = await Material.findById(req.params.id);
     if (!m) return errorResponse(res, 'Material not found', 404);
-    // TODO: also delete the file from disk (fs.unlink)
+
+    // Try to delete physical file
+    const filePath = path.join(__dirname, '../../', m.fileUrl);
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (err) {
+        console.error('Failed to delete physical file:', err);
+    }
+
+    await Material.findByIdAndDelete(req.params.id);
     return successResponse(res, null, 'Material deleted');
 });
 

@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Calendar, Clock, GraduationCap, PlayCircle, Trophy, Loader2 } from 'lucide-react';
+import {
+    BookOpen,
+    Calendar,
+    Clock,
+    GraduationCap,
+    Trophy,
+    Loader2,
+    Download,
+    FileText,
+    FileAudio,
+    Video,
+    File
+} from 'lucide-react';
 import { User } from '@/types';
 import { classService } from '@/services/class.service';
+import { materialService } from '@/services/material.service';
 import { cn } from '@/utils/cn';
+
+const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+const DOWNLOAD_BASE = API_BASE.replace('/api/v1', '');
 
 interface StudentDashboardProps {
     user: User;
@@ -11,17 +27,20 @@ interface StudentDashboardProps {
 export function StudentDashboard({ user }: StudentDashboardProps) {
     const [availableClasses, setAvailableClasses] = useState<any[]>([]);
     const [myEnrollments, setMyEnrollments] = useState<any[]>([]);
+    const [materials, setMaterials] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [classesRes, enrollmentsRes] = await Promise.all([
+                const [classesRes, enrollmentsRes, materialsRes] = await Promise.all([
                     classService.getAll(),
-                    classService.getMyEnrollments()
+                    classService.getMyEnrollments(),
+                    materialService.getAll()
                 ]);
                 if (classesRes.success) setAvailableClasses(classesRes.data);
                 if (enrollmentsRes.success) setMyEnrollments(enrollmentsRes.data);
+                if (materialsRes.success) setMaterials(materialsRes.data);
             } catch (error) {
                 console.error('Failed to fetch dashboard data:', error);
             } finally {
@@ -35,7 +54,6 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
         try {
             const res = await classService.enroll(classId);
             if (res.success) {
-                // Refetch enrollments so the button state updates immediately
                 const enrollmentsRes = await classService.getMyEnrollments();
                 if (enrollmentsRes.success) setMyEnrollments(enrollmentsRes.data);
             }
@@ -54,19 +72,17 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
 
     return (
         <div className="space-y-6">
-            {/* Welcome Header */}
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user.name}!</h1>
                 <p className="text-gray-500 mt-1">Ready for your next lesson?</p>
             </div>
 
-            {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                     <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center mb-4">
                         <BookOpen className="w-6 h-6 text-blue-600" />
                     </div>
-                    <p className="text-2xl font-bold text-gray-900">{availableClasses.filter(c => c.enrolledCount > 0).length}</p>
+                    <p className="text-2xl font-bold text-gray-900">{availableClasses.filter((c: any) => c.enrolledCount > 0).length}</p>
                     <p className="text-sm text-gray-500 mt-1">Active Courses</p>
                 </div>
 
@@ -90,67 +106,44 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
                     <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mb-4">
                         <Trophy className="w-6 h-6 text-green-600" />
                     </div>
-                    <p className="text-2xl font-bold text-gray-900">Lvl 4</p>
-                    <p className="text-sm text-gray-500 mt-1">Current Mastery</p>
+                    <p className="text-2xl font-bold text-gray-900">{materials.length}</p>
+                    <p className="text-sm text-gray-500 mt-1">Files Available</p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Available Classes */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                            <BookOpen className="w-5 h-5 text-blue-600" />
+                        <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                            <GraduationCap className="w-5 h-5 text-purple-600" />
                             Available Classes
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {availableClasses.map((cls) => {
-                                const enrollment = myEnrollments.find(e => e.classId?._id === cls._id);
-                                const isEnrolled = !!enrollment;
-                                const isPending = enrollment?.status === 'pending';
-                                const isActive = enrollment?.status === 'active';
+                            {availableClasses.map((cls: any) => {
+                                const isEnrolled = myEnrollments.some((e: any) => e.classId._id === cls._id);
+                                const isPending = myEnrollments.some((e: any) => e.classId._id === cls._id && e.status === 'pending');
 
                                 return (
-                                    <div key={cls._id} className="p-4 rounded-xl border border-gray-100 hover:border-blue-200 transition-colors">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <h3 className="font-bold text-gray-900">{cls.className}</h3>
-                                            <span className={cn(
-                                                "text-xs font-medium px-2 py-1 rounded-lg",
-                                                isActive ? "bg-green-100 text-green-700" :
-                                                    isPending ? "bg-orange-100 text-orange-700" :
-                                                        "bg-blue-50 text-blue-600"
-                                            )}>
-                                                {isActive ? "Enrolled" :
-                                                    isPending ? "Requested" :
-                                                        `${cls.capacity - cls.enrolledCount} spots left`}
+                                    <div key={cls._id} className="p-4 rounded-2xl border border-gray-100 hover:border-purple-200 hover:bg-purple-50/30 transition-all">
+                                        <h3 className="font-bold text-gray-900">{cls.className}</h3>
+                                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{cls.description}</p>
+                                        <div className="mt-4 flex items-center justify-between">
+                                            <span className="text-xs font-medium px-2 py-1 bg-gray-100 rounded-lg text-gray-600">
+                                                {cls.schedule?.day} @ {cls.schedule?.startTime}
                                             </span>
+                                            <button
+                                                onClick={() => handleEnroll(cls._id)}
+                                                disabled={isEnrolled || isPending}
+                                                className={cn(
+                                                    "text-xs font-bold px-4 py-2 rounded-xl transition-all",
+                                                    isEnrolled ? "bg-green-100 text-green-700 pointer-events-none" :
+                                                        isPending ? "bg-amber-100 text-amber-700 pointer-events-none" :
+                                                            "bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
+                                                )}
+                                            >
+                                                {isEnrolled ? 'Enrolled' : isPending ? 'Pending' : 'Join Class'}
+                                            </button>
                                         </div>
-                                        <div className="space-y-2 mb-4 text-sm text-gray-500">
-                                            <div className="flex items-center gap-2">
-                                                <Calendar className="w-4 h-4" />
-                                                <span>{cls.schedule.day}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Clock className="w-4 h-4" />
-                                                <span>{cls.schedule.startTime} - {cls.schedule.endTime}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <GraduationCap className="w-4 h-4" />
-                                                <span>{cls.tutorId?.name}</span>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => handleEnroll(cls._id)}
-                                            disabled={isEnrolled}
-                                            className={cn(
-                                                "w-full py-2 rounded-xl font-bold text-sm transition-colors",
-                                                isEnrolled
-                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                    : "bg-blue-600 text-white hover:bg-blue-700"
-                                            )}
-                                        >
-                                            {isPending ? 'Request Pending' : isActive ? 'Already Joined' : 'Request to Join'}
-                                        </button>
                                     </div>
                                 );
                             })}
@@ -158,25 +151,60 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
                     </div>
                 </div>
 
-                {/* My Enrolled Classes */}
                 <div className="space-y-6">
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">My Dashboard</h2>
-                        <div className="space-y-4">
-                            <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                                <p className="text-sm font-bold text-indigo-600 mb-1">Academy Rank</p>
-                                <p className="text-2xl font-black text-indigo-900">PRODIGY</p>
-                                <div className="mt-3 w-full bg-indigo-200 rounded-full h-2">
-                                    <div className="bg-indigo-600 h-2 rounded-full w-[70%]" />
+                        <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <BookOpen className="w-5 h-5 text-blue-600" />
+                            My Materials
+                        </h2>
+                        <div className="space-y-3">
+                            {materials.length > 0 ? (
+                                materials.map((item: any) => (
+                                    <div key={item._id} className="group p-3 rounded-xl border border-gray-50 hover:border-blue-100 hover:bg-blue-50/30 transition-all">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                                                {item.mimeType?.includes('pdf') ? <FileText className="w-4 h-4 text-red-500" /> :
+                                                    item.mimeType?.startsWith('audio/') ? <FileAudio className="w-4 h-4 text-purple-500" /> :
+                                                        item.mimeType?.startsWith('video/') ? <Video className="w-4 h-4 text-indigo-500" /> :
+                                                            <File className="w-4 h-4 text-gray-500" />
+                                                }
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-bold text-gray-900 truncate">{item.title}</p>
+                                                <p className="text-xs text-gray-500">{item.classId?.className || 'General'}</p>
+                                            </div>
+                                            <a
+                                                href={`${DOWNLOAD_BASE}${item.fileUrl}`}
+                                                download={item.fileName}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </a>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-6 text-gray-400 text-sm">
+                                    No materials shared yet
                                 </div>
-                                <p className="text-[10px] text-indigo-500 mt-2 font-bold uppercase tracking-wider">70% to next level</p>
-                            </div>
+                            )}
+                        </div>
+                    </div>
 
-                            <button className="w-full py-3 px-4 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-black transition-colors flex items-center justify-center gap-2">
-                                <PlayCircle className="w-5 h-5" />
-                                Enter Virtual Classroom
+                    <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-6 text-white text-center relative overflow-hidden">
+                        <div className="relative z-10">
+                            <p className="text-blue-100 text-sm font-medium mb-1">Upgrade your skills</p>
+                            <h3 className="text-xl font-bold mb-4">Get Certified</h3>
+                            <button
+                                onClick={() => window.open(DOWNLOAD_BASE, '_blank')}
+                                className="w-full py-2.5 bg-white text-blue-600 rounded-xl font-bold text-sm shadow-lg hover:bg-blue-50 transition-all font-outfit"
+                            >
+                                View Learning Paths
                             </button>
                         </div>
+                        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
                     </div>
                 </div>
             </div>

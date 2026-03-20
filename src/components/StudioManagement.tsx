@@ -13,15 +13,15 @@ import {
   User,
   CheckCircle,
   XCircle,
-  Edit,
   Loader2
 } from 'lucide-react';
 import { bookingService } from '@/services/booking.service';
 import { studioServiceService } from '@/services/studio-service.service';
 import { materialService } from '@/services/material.service';
 import { NewBookingModal } from './modals/NewBookingModal';
+import { FileUploadModal } from './modals/FileUploadModal';
 import { cn } from '@/utils/cn';
-import { StudioBooking, User as UserType } from '@/types';
+import { User as UserType } from '@/types';
 
 type TabType = 'bookings' | 'files' | 'services';
 
@@ -40,6 +40,10 @@ export function StudioManagement({ user }: StudioManagementProps) {
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewServiceModal, setShowNewServiceModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  const DOWNLOAD_BASE = API_BASE.replace('/api/v1', '');
 
   const fetchData = async () => {
     try {
@@ -93,7 +97,17 @@ export function StudioManagement({ user }: StudioManagementProps) {
     }
   };
 
-  const filteredBookings = bookings.filter(booking => {
+  const handleDeleteFile = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this file?')) return;
+    try {
+      const res = await materialService.delete(id);
+      if (res.success) fetchData();
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+    }
+  };
+
+  const filteredBookings = bookings.filter((booking: any) => {
     const matchesSearch = (booking.userId?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -177,7 +191,7 @@ export function StudioManagement({ user }: StudioManagementProps) {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredBookings.map(booking => (
+              {filteredBookings.map((booking: any) => (
                 <BookingCard
                   key={booking._id}
                   booking={booking}
@@ -194,9 +208,12 @@ export function StudioManagement({ user }: StudioManagementProps) {
       {activeTab === 'files' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <button className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-xl font-medium hover:bg-purple-200 transition-colors">
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium shadow-md shadow-purple-100 hover:shadow-lg transition-all"
+            >
               <Upload className="w-5 h-5" />
-              Upload File
+              Upload Project File
             </button>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -229,9 +246,25 @@ export function StudioManagement({ user }: StudioManagementProps) {
                     <td className="px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">{(file.size / 1024).toFixed(1)} KB</td>
                     <td className="px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">{new Date(file.createdAt).toLocaleDateString()}</td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-gray-400 hover:text-purple-600 transition-colors">
-                        <Download className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <a
+                          href={`${DOWNLOAD_BASE}${file.fileUrl}`}
+                          download={file.fileName}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 text-gray-400 hover:text-purple-600 transition-colors"
+                          title="Download"
+                        >
+                          <Download className="w-5 h-5" />
+                        </a>
+                        <button
+                          onClick={() => handleDeleteFile(file._id)}
+                          className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Delete"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -299,6 +332,18 @@ export function StudioManagement({ user }: StudioManagementProps) {
             fetchData();
             setShowNewServiceModal(false);
           }}
+        />
+      )}
+
+      {/* File Upload Modal */}
+      {showUploadModal && (
+        <FileUploadModal
+          onClose={() => setShowUploadModal(false)}
+          onSuccess={() => {
+            fetchData();
+            setShowUploadModal(false);
+          }}
+          materialType="recording"
         />
       )}
     </div>
