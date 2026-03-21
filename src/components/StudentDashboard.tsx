@@ -44,7 +44,13 @@ export function StudentDashboard({ user }: StudentDashboardProps) {
                 ]);
                 if (classesRes.success) setAvailableClasses(classesRes.data);
                 if (enrollmentsRes.success) setMyEnrollments(enrollmentsRes.data);
-                if (materialsRes.success) setMaterials(materialsRes.data);
+                if (materialsRes.success && enrollmentsRes.success) {
+                    const enrolledClassIds = enrollmentsRes.data.map((e: any) => e.classId?._id);
+                    const filtered = materialsRes.data.filter((m: any) =>
+                        !m.classId || enrolledClassIds.includes(m.classId?._id)
+                    );
+                    setMaterials(filtered);
+                }
                 if (bookingsRes.success) setMyBookings(bookingsRes.data);
             } catch (error) {
                 console.error('Failed to fetch dashboard data:', error);
